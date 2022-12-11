@@ -1,2 +1,3 @@
-# PEP2-Inferencial
-Repositorio para la PEP 2 de Estadística Inferencial Parte I, la cual será aplicada el Martes 13 de Diciembre de 2022.
+# PEP 2 Estadística Inferencial 2022-2
+Repositorio que contiene material para la PEP 2 de Estadística Inferencial. Entre el material se encuentran los EPs desarrollados en clase, las soluciones de los 
+EPs proporcionadas por el profesor y los Scrips desarrollados mediante estudio autónomo.
