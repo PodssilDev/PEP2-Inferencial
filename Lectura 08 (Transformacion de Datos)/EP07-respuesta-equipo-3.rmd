@@ -1,0 +1,151 @@
+---
+title: "**EP07**"
+date: "**2022-10-06**"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library("tidyverse")
+library("rcompanion")
+library("DescTools")
+```
+
+#### **Lectura de Datos**
+```{r}
+datos <- read.csv("EP07 Datos.csv",header=TRUE, sep = ",")
+```
+
+## **Pregunta 1**
+#### **Observando los datos, la memorista sospecha que hay diferencias significativas en el tiempo de ejecución entre las versiones A y C del algoritmo cuando las instancias tienen 90 o más nodos. ¿Los datos respaldan la intuición de la memorista? Para responder, filtren los datos para tener las instancias con 90 o más nodos y seleccionen las columnas de los tiempos de ejecución de las versiones A y C en formato ancho. Usando como semilla el valor 73, obtenga muestras aleatorias independientes de 24 tiempos registrados por la versión A y 20 tiempos registrados por la versión C del algoritmo. Lleven los datos a formato largo y utilicen la escalera de potencias de Tukey para analizar las muestras obtenidas.**
+
+Considerando el enunciado, podemos definir la Hipótesis Nula e Hipótesis Alternativa:
+
+* $H_0$: Existen diferencias significativas en el tiempo de ejecución entre las versiones A y C del algoritmo cuando las instancias tienen 90 o más nodos.
+
+* $H_A$: No existen diferencias significativas en el tiempo de ejecución entre las versiones A y C del algoritmo cuando las instancias tienen 90 o más nodos.
+
+En lenguaje matemático, lo anterior seria:
+
+* $H_0: t_A \neq t_C$
+
+* $H_A: t_A = t_C$
+
+#### Filtrado de datos
+```{r}
+# Se setea la semilla 73
+set.seed(73) 
+# Se filtran los datos y se obtienen instancias con 90 o más nodos
+data_ancho_ej1 <- datos %>% filter(n.nodos >= 90)
+```
+
+#### Datos en formato largo
+```{r}
+# Obtención de muestra
+filas <- sample(1:nrow(data_ancho_ej1),44)
+TiempoA <- data_ancho_ej1$tiempo.A[1:24]
+TiempoC <- data_ancho_ej1$tiempo.C[25:44]
+Tiempo <- c(TiempoA, TiempoC)
+Algoritmo <- c(rep("A",20),rep("C",24))
+# Se obtienen los datos en formato largo
+data_long_ej1 <- data.frame(Algoritmo,Tiempo)
+```
+
+### Histograma
+```{r}
+# Se crea un histograma para complementar la información anterior
+algA <- data_long_ej1 %>% filter(Algoritmo == "A")
+algC <- data_long_ej1 %>% filter(Algoritmo == "C")
+hist(algA$Tiempo, col = "cyan4", main = "")
+hist(algC$Tiempo, col = "cyan4", main = "")
+```
+
+Cómo se puede observar en los histogramas, los datos son asimétricos, por lo que se usa el **Método de escalera de potencias de Tuckey** para transformarlos a una distribución simétrica cercana a la normal.
+
+```{r}
+# Se aplica el método de escalera de potencias de Tuckey a los algoritmos A y C
+algA_tuckey <- transformTukey(algA$Tiempo,start = -20,end = 20,int = 0.025,plotit = TRUE,quiet=TRUE,statistic = 1)
+algC_tuckey <- transformTukey(algC$Tiempo,start = -20,end = 20,int = 0.025,plotit = TRUE,quiet=TRUE,statistic = 1)
+```
+
+Ahora que los datos son simétricos se procede a aplicar una prueba paramétrica en este caso t Student para muestras independientes
+```{r}
+# Se utiliza un nivel de confianza del 95%
+alfa = 0.05
+# Se aplica la prueba T con los datos arreglados
+t_test <- t.test(Tiempo ~ Algoritmo, data_long_ej1, conf.level = 1 - alfa)
+print(t_test)
+```
+```{r echo = FALSE}
+cat("Como el p-value obtenido es",t_test$p.value," menor al nivel de significancia definido 0.05, se rechaza la Hipótesis Nula en favor de la Hipótesis Alternativa y por lo tanto, no existen diferencias significativas en el tiempo de ejecución entre las versiones A y C del algoritmo cuando las instancias tienen 90 o más nodos.")
+```
+
+## **Pregunta 2**
+#### **La memorista también sospecha que, al comparar las mismas instancias, las mejores soluciones encontradas por las versiones A y B tienen rendimientos distintos. ¿Estará en lo cierto? Para responder, seleccionen las columnas con el mejor rendimiento de las versiones A y B en formato ancho. Usando como semilla el valor 13, obtengan una muestra aleatoria de 22 instancias. Lleven los datos a formato largo y utilicen una prueba no paramétrica apropiada para analizar las muestras obtenidas.**
+
+#### Filtrado de datos
+```{r}
+# Se setea la semilla solicitada
+set.seed(13)
+# Se filtran los datos y se obtienen instancias con 90 o más nodos
+data_ancho_ej2 <- datos %>% filter(n.nodos >= 90)
+```
+
+#### Datos en formato largo
+```{r}
+filas <- sample(1:nrow(data_ancho_ej2),22)
+Mejor_A <- data_ancho_ej2$mejor.A[filas]
+Mejor_B <- data_ancho_ej2$mejor.B[filas]
+Instancia <- data_ancho_ej2$instancia[filas]
+Algoritmo <- c(rep("A",22),rep("B",22))
+Mejor <- c(Mejor_A,Mejor_B)
+
+# Se obtienen los datos en formato largo
+data_long_ej2 <- data.frame(Instancia,Algoritmo,Mejor)
+```
+
+### Histograma
+```{r}
+# Se crea un Histograma para visualizar la información y el comportamiento de los datos
+hist(Mejor_A, col = "cyan4", main = "")
+hist(Mejor_B,col = "firebrick", main = "")
+```
+
+Cómo se puede observar el tamaño de grupos es pequeño, y presentan una asimetría en el histograma, por lo tanto no es posible utilizar una prueba paramétrica cómo **t-test** de muestras pareadas, nuestra alternativa más cercana es **La prueba de los rangos con signo de Wilcoxon**, ya que por cada observación o instancia tenemos 2 componentes (mejor tiempo algoritmo A y mejor tiempo algoritmo B)
+
+### Boxplot
+```{r}
+# Se crea un diagrama de caja de ambos algoritmos y los mejores tiempos
+boxplot(Mejor ~ Algoritmo, data_long_ej2, names=c("A","B"),xlab="Algoritmo", ylab = "Mejores tiempos")
+```
+
+Mediante el diagrama de caja de ambos algoritmos y los tiempos de sus mejores desempeños, se puede observar valores atípicos en el algoritmo B, es decir una dispersión mayor al grupo 2, corroborando una vez más la asimetría, otro dato relevante es la mediana o cuartil 2 (Q2) se encuentra lejana para ambos algoritmos, lo cual entrega información relevante para la posterior aplicación de **La prueba de los rangos con signo de Wilcoxon**.
+
+### Condiciones Prueba de los rangos con signo de Wilcoxon
+
+* Las observaciones de ambas muestras son pareadas: Las observaciones fueron extraídas aleatoriamente, ya que se usa la función sample para extraer x muestras de forma aleatoria.
+
+* La escala empleada para las observaciones debe ser intrínsecamente continua: Esto es así, dado que al tratarse de tiempos se puede decir que un valor tiempo puede tomar infinitos valores en un intervalo.
+
+* La escala de medición empleada para ambas muestras debe ser a lo menos ordinal: Se cumple, dado que al tratarse de tiempos se puede concluir y decir que un tiempo es mejor que otro, igual o peor que otro.
+
+### Definición de hipótesis
+
+Las hipótesis a tener en consideración son:
+
+* $H_0$: **No hay diferencia en los rendimientos entre las mejores soluciones encontradas por A y B**
+
+* $H_A$: **Hay diferencia en los rendimientos entre las mejores soluciones encontradas por A y B**
+
+### Aplicación de la prueba
+```{r}
+# Considerando el enunciado y los datos, utilizaremos un alfa igual a 0.05. (Nivel de confianza del 95%)
+alfa <- 0.05
+# Se aplica la prueba de rangos con signos de Wilcoxon
+wilcox_test <- wilcox.test(Mejor ~ Algoritmo,data = data_long_ej2,paired = TRUE, alternative = "two.sided",conf.level = 1 - alfa)
+print(wilcox_test)
+```
+```{r echo = FALSE}
+cat("Como el p-value obtenido mediante la prueba es",wilcox_test$p.value,"lo cual es menor al alfa asignado, se falla al aceptar la hipótesis nula, en favor de la hipótesis alternativa y por lo tanto con 95% de confianza, hay diferencia en los rendimientos entre las mejores soluciones encontradas por las versiones A y B.")
+```
+
+Lo anterior también puede responder a la interrogante de la pregunta: **La memorista está en lo cierto**, pues mediante el análisis hecho anteriormente se puede comprobar que las mejores soluciones encontradas por las versiones A y B tienen rendimientos distintos.

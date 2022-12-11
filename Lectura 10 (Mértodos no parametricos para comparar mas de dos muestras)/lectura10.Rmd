@@ -1,0 +1,172 @@
+---
+title: "Lectura10"
+author: "John Serrano y Nícolas Farfán"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+### **Prueba de Kruskal-Wallis**
+
+Si bien ANOVA es usualmente robusto ante desviaciones leves de las condiciones (excepto la segunda; Las k muestras son obtenidas de manera aleatoria e independiente desde la(s) población(es) de origen) cuando las muestras son de igual tamaño, no ocurre lo mismo cuando los tamaños de las muestras difieren. En este caso, una alternativa es emplear la prueba de Kruskal-Wallis, cuyas condiciones son:
+
+* La variable independiente debe tener a lo menos dos niveles (aunque, para dos niveles, se suele usar la
+prueba de Wilcoxon-Mann-Whitney).
+* La escala de la variable dependiente debe ser, a lo menos, ordinal.
+* Las observaciones son independientes entre sí.
+
+#### **Ejemplo para la prueba de Kruskal-Wallis**
+
+Un ingeniero cuenta con cuatro algoritmos (A, B, C y D) para resolver un determinado problema (en iguales condiciones y para instancias de tamaño fijo) y desea comparar su eficiencia. Para cada algoritmo, selecciona una muestra aleatoria independiente de instancias y registra el tiempo de ejecución (en milisegundos) del algoritmo en cuestión para cada una de las instancias de la muestra correspondiente, obteniendo las siguientes mediciones:
+
+* Algoritmo A: 21, 22, 22, 23, 23, 23, 23, 24, 24, 24, 25, 26
+* Algoritmo B: 15, 17, 18, 18, 19, 19, 20, 20, 21
+* Algoritmo C: 9, 10, 10, 10, 10, 11, 11, 12, 12, 12, 12, 13, 14, 15
+* Algoritmo D: 15, 15, 16, 16, 16, 18, 18, 18
+
+Las hipótesis para el ejemplo son: 
+
+* H0: todos los algoritmos son igual de eficientes (o, de manera similar, ningún algoritmo es menos ni más eficiente que los demás).
+* HA: al menos uno de los algoritmos presenta una eficiencia diferente a al menos algún otro algoritmo.
+
+El procedimiento de la prueba de Kruskal-Wallis tiene elementos similares a los descritos en las pruebas no paramétricas para una y dos medias. El primer paso consiste en combinar las muestras y luego asignar el rango a cada elemento. A continuación se calcula la suma (Tx) y la media (Mx) de los rangos en cada grupo y en la muestra combinada. De manera similar a ANOVA, se requiere determinar la diferencia entre las medias grupales. Para ello se calculan las desviaciones cuadradas de las medias grupales de los rangos con respecto a la media total de los rangos.
+
+De manera similar a ANOVA, se requiere determinar la diferencia entre las medias grupales. Para ello se calculan las desviaciones cuadradas de las medias grupales de los rangos con respecto a la media total de los rangos. 
+
+La hipótesis nula, llevada al dominio de los rangos, es que los rangos medios de los distintos grupos no serán muy diferentes entre sí. Podría esperarse que el valor nulo para SSbg(R) fuera 0, no obstante, no es así. Supongamos por un momento que tenemos 3 muestras con dos observaciones cada una, con lo que tendríamos un total de 6 rangos. Dichos rangos pueden combinarse de 90 maneras distintas para formar tres grupos con dos elementos. La distribución muestral de SSbg(R) estaría dada, entonces, por los valores de SSbg(R) obtenidos para cada una de las 90 combinaciones, de los cuales únicamente 6 son iguales a 0 y todos los restantes, mayores que 0 (recuerde que es matemáticamente imposible obtener desviaciones cuadradas con valor negativo).
+
+Llegado este punto, se define el **estadístico de prueba H**, el cual se construye en torno al valor obtenido para SSbg(R) y parte de la fórmula empleada para calcular el valor nulo,
+
+Cuando cada uno de los k grupos tiene a lo menos 5 observaciones, el estadístico de prueba H sigue una distribución χ2 con ν = k − 1 grados de libertad.
+
+Fijémonos en que, al igual que ANOVA, la prueba de Kruskal-Wallis es de tipo ómnibus, por lo que no entrega información en relación a cuáles grupos presentan diferencias. En consecuencia, una vez más es necesario efectuar un análisis post-hoc cuando se detectan diferencias significativas. Podemos hacer comparaciones entre pares de grupos con la prueba de Wilcoxon Mann-Whitney (equivalentes a las realizadas con la prueba t de Student para ANOVA de una vía para muestras independientes), usando alguno de los métodos de corrección como por ejemplo, Holm y Bonferroni.
+
+En R, podemos ejecutar la prueba de Kruskal-Wallis mediante la función **kruskal.test(formula, data)**, donde: 
+
+* formula: tiene la forma < variable dependiente >∼ < variable independiente (factor) >. 
+* data: matriz de datos en formato largo.
+
+Para los procedimientos post-hoc, las pruebas de Bonferroni y Holm pueden realizarse mediante la función **pairwise.wilcox.test(x, g, p.adjust.method, paired = FALSE)**, donde:
+
+* x: vector con la variable dependiente.
+* g: factor o agrupamiento.
+* p.adjust.method: puede ser “holm” o “bonferroni”, entre otras alternativas.
+* paired: valor booleano que indica si la prueba es pareada (verdadero) o no. Para la prueba de Kruskal-Wallis debe ser FALSE.
+
+#### **Ejemplo para la prueba de Kruskal-Wallis en R**
+
+**Prueba de Kruskal-Wallis y el procedimiento post-hoc de Holm para el ejemplo.**
+
+```{r}
+# Construir la mariz de datos .
+A <- c(24 , 23 , 26 , 21 , 24 , 24 , 25 , 22 , 23 , 22 , 23 , 23)
+B <- c(17 , 15 , 18 , 20 , 19 , 21 , 20 , 18 , 19)
+C <- c(10 , 11 , 14 , 11 , 15 , 12 , 12 , 10 , 9 , 13 , 12 , 12 , 10 , 10)
+D <- c(18 , 16 , 18 , 15 , 16 , 15 , 18 , 16)
+Tiempo <- c(A , B , C, D)
+
+Algoritmo <- c(rep("A", length ( A ) ) ,
+               rep ("B", length ( B ) ) ,
+               rep ("C", length (C) ) ,
+               rep ("D", length (D) ) )
+
+Algoritmo <- factor ( Algoritmo )
+
+datos <- data.frame (Tiempo, Algoritmo)
+
+# Establecer nivel de significaci ón
+alfa <- 0.01
+
+# Hacer la prueba de Kruskal - Wallis .
+prueba <- kruskal.test (Tiempo~Algoritmo, data = datos )
+print(prueba)
+
+# Efectuar procedimiento post -hoc de Holm si se encuentran diferencias
+# significativas .
+if( prueba$p.value < alfa){
+  post_hoc <- pairwise.wilcox.test (datos$Tiempo,
+                                    datos$Algoritmo,
+                                    p.adjust.method = "holm",
+                                    paired = FALSE)
+
+print(post_hoc)
+}
+```
+
+Notemos que **pairwise.wilcox.test()** solo reporta los p valores ajustados. Si queremos conocer el tamaño del efecto de las diferencias detectadas, debemos realizar las correspondientes pruebas de Wilcoxon-MannWhitney para todos los pares de grupos que presenten diferencias significativas.
+
+### **Prueba de Friedman**
+
+Existen situaciones en las que no podemos comprobar que la escala de medición de la variable dependiente sea de intervalos iguales:
+
+* Cuando las observaciones se miden en una escala logarítmica (por ejemplo, la escala de pH para medir la acidez o la escala de Richter para medir la intensidad de los sismos).
+
+* Cuando las mediciones provienen de una escala ordinal, por ejemplo, un orden de preferencia.
+
+* Cuando las mediciones de base provienen de una escala ordinal. Por ejemplo, cuando se suman o promedian puntajes de diversos elementos evaluados con una escala Likert.
+
+Las condiciones requeridas por la prueba de Friedman son las siguientes:
+
+* 1. La variable independiente debe ser categórica y tener a lo menos tres niveles.
+* 2. La escala de la variable dependiente debe ser, a lo menos, ordinal.
+* 3. Los sujetos son una muestra aleatoria e independiente de la población.
+
+#### **Ejemplo de la prueba de Friedman**
+
+Supongamos ahora que un equipo de desarrolladores desea establecer qué interfaz gráfica (A, B o C ) resulta más atractiva para las usuarias y los usuarios de un nuevo sistema, por lo que han seleccionado una muestra aleatoria representativa de los distintos tipos de usuarios/as y les han solicitado evaluar 6 aspectos de cada interfaz con una escala Likert de 5 puntos, donde el valor 1 corresponde a una valoración muy negativa y 5, a una muy positiva. La tabla 10.9 muestra las puntuaciones totales asignadas por cada participante a las diferentes interfaces. En consecuencia, las hipótesis a contrastar son: 
+
+* H0: las interfaces tienen preferencias similares.
+* HA: al menos una interfaz obtiene una preferencia distinta a las demás.
+
+El primer paso del proceso consiste en asignar rangos a las observaciones de cada sujeto. La interfaz con puntuación más baja recibe un rango de 1 y la más alta, un rango de 3 (generalizando, si se tienen k observaciones pareadas, se asignan rangos con valores de 1 a k). En caso de empate, se asigna el promedio de los rangos correspondientes. La tabla 10.10 muestra el resultado de este proceso.
+
+La hipótesis nula para la prueba de Friedman es que los rangos promedio de cada interfaz son muy similares. A continuación se calculan algunas estadísticas de resumen.
+
+El estadístico de prueba, sigue una distribución χ2 con k − 1 grados de libertad.
+
+**En este caso no es necesario realizar un procedimiento post-hoc, pues la prueba ómnibus no encontró diferencias estadísticamente significativas. No obstante, si fuese necesario, podemos efectuar una prueba de rangos con signo de Wilcoxon por cada par de grupos y aplicar algún factor de corrección.**
+
+Para hacer la prueba de Friedman en R, podemos usar la función **friedman.test(formula, data)**, donde:
+
+* formula: tiene la forma <variable dependiente>∼ <variable independiente>| <identificador de sujeto o bloque>.
+* data: matriz de datos en formato largo.
+
+Para los procedimientos post-hoc, podemos aplicar los ajustes de Bonferroni y Holm mediante la función **pairwise.wilcox.test()**, del mismo modo descrito para la prueba de Kruskal-Wallis, cuidando en este caso que el argumento paired debe tomar forzosamente el valor TRUE. Si además queremos conocer el tamaño del efecto detectado para aquellos pares identificados como relevantes, debemos realizar las correspondientes pruebas de rangos con signo de Wilcoxon para todos los pares de grupos que presenten diferencias significativas
+
+**Prueba de Friedman y el procedimiento post-hoc de Holm para el ejemplo.**
+
+```{r}
+# Construir la mariz de datos .
+A <- c(21 , 10 , 7 , 21 , 24 , 27 , 17)
+B <- c(6 , 21 , 18 , 7 , 24 , 13 , 13)
+C <- c(13 , 25 , 18 , 20 , 24 , 8 , 29)
+
+Puntuacion <- c(A , B , C)
+
+Interfaz <- c( rep("A", length ( A ) ) ,
+                 rep ("B", length ( B ) ) ,
+               rep ("C", length (C) ) )
+
+Sujeto <- rep (1:7,3)
+
+Interfaz <- factor (Interfaz)
+
+datos <- data.frame (Sujeto , Puntuacion, Interfaz )
+
+# Establecer nivel de significación
+alfa <- 0.05
+
+# Hacer la prueba de Friedman .
+prueba <- friedman.test (Puntuacion~Interfaz | Sujeto , data = datos )
+print(prueba)
+
+# Efectuar procedimiento post-hoc de Holm si se encuentran diferencias
+# significativas .
+if( prueba $p.value < alfa ) {
+  post_hoc <- pairwise.wilcox.test(datos$Puntuacion,
+                                   datos$Interfaz,
+                                   p.adjust.method = "holm",
+                                   paired = TRUE )
+  print (post_hoc)
+}
+```
+

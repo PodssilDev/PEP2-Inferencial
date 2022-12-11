@@ -1,0 +1,137 @@
+---
+title: "Lectura 09"
+author: "John Serrano y Nícolas Farfán"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+### Prueba de Suma de Rangos de Wilcoxon
+
+La prueba de suma de rangos de Wilcoxon, también llamada prueba U de Mann-Whitney o prueba de Wilcoxon-Mann-Whitney, es una alternativa no paramétrica a la prueba t de Student con muestras independientes. Pese a ser no paramétrica, requiere verificar el cumplimiento de las siguientes condiciones: 
+
+* Las observaciones de ambas muestras son independientes.
+* La escala de medición empleada debe ser a lo menos ordinal, de modo que tenga sentido hablar de relaciones de orden (“igual que”, “menor que”, “mayor o igual que”).
+
+Para un ejemplo, las Hipótesis de esta prueba son:
+
+* H0: no hay diferencia en la usabilidad de ambas interfaces (se distribuyen de igual forma).
+* HA: sí hay diferencia en la usabilidad de ambas interfaces (distribuciones distintas).
+
+Al igual que en el caso de la prueba χ2 de Pearson, estas hipótesis no hacen referencia a algún parámetro de una supuesta distribución para las poblaciones de puntuaciones de usabilidad, es decir, nos entregan menos
+información que la prueba paramétrica equivalente.
+
+El primer paso de la prueba consiste en combinar todas las observaciones en un único conjunto de tamaño nT = nA + nB y ordenarlo de menor a mayor. A cada elemento se le asigna un valor de rango (rank en inglés) de 1 a nT , de acuerdo a la posición que ocupa en el conjunto ordenado. En caso de que un valor aparezca más de una vez, cada repetición toma como valor el rango promedio de todas las ocurrencias del valor.
+
+Trabajar con los rangos en lugar de las observaciones nos ofrece dos ventajas: la primera es que el foco solo está en las relaciones de orden entre las observaciones, sin necesidad de que estas provengan de una escala de intervalos iguales. La segunda es que esta transformación facilita conocer de manera sencilla algunas propiedades del conjunto de datos.
+
+* Media de los rangos (Total):
+
+$$\mu = \frac{n_t + 1}{2}$$
+
+* Media de la suma de los rangos de x:
+
+$$\mu_x = n_x \cdot \frac{(n_t+1)}{2}$$
+
+**La prueba de Wilcoxon-Mann-Whitney tiene dos variantes, una para muestras grandes y otra para muestras pequeñas, que se diferencian a partir de este punto.**
+
+#### Prueba de Suma de Rangos de Wilcoxon para muestras grandes
+
+$$\sigma_t = \sqrt{\frac{n_a\cdot n_b \cdot (n_t + 1)}{\mu}}$$
+
+Cuando ambas muestras tienen tamaño mayor o igual a 5, podemos demostrar que las distribuciones muestrales de TA y TB tienden a aproximarse a la distribución normal. En consecuencia, una vez conocidas la media y la desviación estándar de una distribución normal para la muestra, podemos calcular el estadístico z para TA o TB, donde:
+
+* $T_{obs}$ es cualquiera de los valores observados, $T_A$ o $T_B$.
+* $\mu_{obs}$ es la media de la distribución muestral de $T_{obs}$.
+* $\sigma_{T}$ es la desviación estándar de la distribución muestral de $T_{obs}$ (es decir, el error estándar).
+
+$$z = \frac{(T_{obs} - \mu_{obs}) \pm 0,5}{\sigma_T}$$
+
+Puesto que las distribuciones muestrales de T son intrínsecamente discretas (solo pueden asumir valores con decimales cuando existen rangos empatados), debemos emplear un factor de corrección de continuidad:
+
+* −0,5 si $T_{obs} >\mu{obs}$
+* 0,5 si $T_{obs} < \mu_{obs}$
+
+Los valores z obtenidos a partir de TA y TB siempre tienen igual valor absoluto y signos opuestos, por lo que no importa cuál de ellos usemos para la prueba de significación estadística. No obstante, debemos tener muy claro el significado del signo de z: si para el ejemplo tuviésemos como hipótesis alternativa que la interfaz A es mejor que la interfaz B, entonces esperaríamos que las observaciones de mayor rango estuvieran en el grupo A, por lo que zA tendría que ser positivo.
+
+El valor z obtenido permite calcular el valor p para una hipótesis alternativa unilateral (pues solo delimita la región de rechazo en una de las colas de la distribución normal estándar subyacente). Así, para el ejemplo, cuya hipótesis alternativa es bilateral, podemos calcular el valor p en R mediante la llamada **2 * pnorm(-0.277, mean = 0, sd = 1, lower.tail = TRUE)**, obteniéndose como resultado p = 0, 782. Evidentemente, el valor p obtenido es muy alto, por lo que fallamos al rechazar la hipótesis nula. En consecuencia, podemos concluir que no hay diferencia significativa en la usabilidad de las dos interfaces.
+
+#### Prueba de suma de rangos de Wilcoxon para muestras pequeñas
+
+Cuando las muestras son pequeñas (menos de 5 observaciones), **no podemos usar el supuesto de normalidad del apartado anterior**, por lo que necesitamos una vía alternativa. Este método sirve también para muestras más grandes, con resultados equivalentes a los ya obtenidos.
+
+Aprovechando una vez más las ventajas de considerar los rangos en lugar de las observaciones originales, podemos calcular el máximo valor posible para la suma de rangos de cada muestra. Fijémonos en que el valor máximo para la suma de rangos de una muestra se produce cuando esta contiene los nx rangos mayores de la muestra combinada.
+
+$$T_{x[max]} = n_x \cdot n_y + \frac{n_x(n_x +1)}{2}$$
+
+Con esto podemos definir un nuevo estadístico de prueba U:
+
+$$U_x = T_{x[max]} - T_x$$
+
+La pregunta asociada a la prueba de hipótesis es: si la hipótesis nula es verdadera (no haym diferencias significativas en la usabilidad de ambas interfaces), ¿qué tan probable es obtener un valor de U al menos tan pequeño como el observado (U = 61)? Para responder a esta pregunta, seguimos un procedimiento similar al que ya conocimos para la prueba exacta de Fisher, se calculan todas las formas en que nT rangos podrían combinarse en dos grupos de tamaños nA y nB, y luego se determina la proporción de las combinaciones que produzcan un valor de U al menos tan pequeño como el encontrado. Pero ¡existen 676.039 combinaciones posibles!
+
+Considerando α = 0, 05 para una prueba bilateral, el valor crítico es U = 33. Puesto que 61 > 33, fallamos al rechazar la hipótesis nula, por lo que concluimos con 95 % de confianza que no existe una diferencia estadísticamente significativa en la usabilidad de ambas interfaces.
+
+#### Prueba de Suma de Rangos de Wilcoxon en R
+
+La implementación de esta prueba en R usa el estadístico W (introducido por Wilcoxon) en lugar del estadístico U empleado por Mann y Whitney. Es por ello que que esta prueba se realiza mediante la función **wilcox.test(x, y, paired = FALSE, alternative, mu, conf.level)**, donde:
+
+* x, y: vectores numéricos con las observaciones. Para aplicar la prueba con una única muestra, y debe ser nulo (por defecto, lo es). 
+* paired: booleano con valor falso para indicar que las muestras son independientes (se asume por defecto).
+* alternative: señala el tipo de hipótesis alternativa: bilateral (“two.sided”) o unilateral (“less” o “greater”).
+* mu: valor nulo para la media (solo para la prueba con una muestra).
+* conf.level: nivel de confianza.
+
+```{r}
+# Ingresar los datos.
+a <- c(2.7 , 6.6 , 1.6 , 5.1 , 3.7 , 6.1 , 5.0 , 1.4 , 1.8 , 1.5 , 3.0 , 5.3)
+b <- c(5.0 , 1.4 , 5.6 , 4.6 , 6.7 , 2.7 , 1.3 , 6.3 , 3.7 , 1.3 , 6.8)
+
+# Establecer nivel de significación.
+alfa <- 0.05
+
+# Hacer la prueba de Mann - Whitney .
+prueba <- wilcox.test (a, b, alternative = "two.sided", conf.level = 1 - alfa )
+print ( prueba )
+```
+
+### Prueba de rangos con signo de Wilcoxon
+
+La prueba de rangos con signo de Wilcoxon es, conceptualmente, parecida a la prueba de suma de rangos de Wilcoxon presentada en la sección anterior. Sin embargo, en este caso es la alternativa no paramétrica a la prueba t de Student con muestras pareadas. Las condiciones que se deben cumplir para usar esta prueba son:
+
+1. Los pares de observaciones son independientes.
+2. La escala de medición empleada para las observaciones es intrínsecamente continua.
+3. La escala de medición empleada para ambas muestras debe ser a lo menos ordinal.
+
+Formalmente, las hipótesis son (Ejemplo):
+
+* H0: las mismas personas no perciben diferencia en la usabilidad de ambas interfaces.
+* HA: las mismas personas consideran que la interfaz A tiene mejor usabilidad que la interfaz B.
+
+La mecánica inicial para esta prueba consiste en calcular las diferencias entre cada par de observaciones y obtener luego su valor absoluto. Generalmente se descartan aquellas instancias con diferencia igual a cero, pues no aportan información relevante al procedimiento. A continuación se ordenan las diferencias absolutas en orden creciente y se les asignan rangos de manera correlativa del mismo modo que en la prueba de Wilcoxon-Mann-Whitney. Una vez asignados los rangos, se les incorpora el signo asociado a la diferencia
+
+Una vez realizado este proceso, se calcula el estadístico de prueba W, correspondiente a la suma de los rangos con signo.
+
+En R, la prueba de rangos con signo de Wilcoxon está implementada en la misma función que en el caso de muestras independientes, pero ahora la llamada es **wilcox.test(x, y, paired = TRUE, alternative, conf.level)**, donde:
+
+* x, y: vectores numéricos con las observaciones.
+* paired: booleano con valor verdadero para indicar que las muestras son pareadas.
+* alternative: señala el tipo de hipótesis alternativa: bilateral (“two.sided”) o unilateral (“less” o “greater”).
+* paired: indica si las muestras están o no pareadas.
+* conf.level: nivel de confianza.
+
+Así, el valor por defecto para el parámetro paired es FALSE, en cuyo caso se efectúa la prueba de suma de rangos de Wilcoxon; mientras que si explícitamente indicamos paired = TRUE, se aplica la prueba de rangos con signo de Wilcoxon.
+
+```{r}
+# Ingresar los datos .
+a <- c(2.9 , 6.1 , 6.7 , 4.7 , 6.4 , 5.7 , 2.7 , 6.9 , 1.7 , 6.4)
+b <- c(6.0 , 2.8 , 1.3 , 4.7 , 3.1 , 1.8 , 2.9 , 4.0 , 2.3 , 1.6)
+
+# Establecer nivel de significaci ón.
+alfa <- 0.05
+
+# Hacer la prueba de rangos con signo de Wilcoxon .
+prueba <- wilcox.test (a , b , alternative = "greater", paired = TRUE , conf.level = 1 - alfa )
+
+print (prueba)
+```
+

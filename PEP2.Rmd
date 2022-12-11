@@ -1,0 +1,41 @@
+---
+title: "PE2"
+date: "2022-11-08"
+output: html_document
+---
+# **Carga de paquetes**
+```{r message=FALSE}
+library("tidyverse")
+library("nortest")
+library("ggpubr")
+library("pwr")
+library(ggpubr)
+library(DescTools)
+library(WRS2)
+
+```
+
+## **Pregunta 1:**
+
+#### **Lectura de datos**
+```{r}
+# datos <- read.csv2("EI-2022-2-PE1-Datos.csv", stringsAsFactors = TRUE)
+```
+
+#### **Hipótesis: **
+Las hipótesis son:
+
+* $H_0$:
+* $H_A$:
+
+#### **Conclusión:**
+
+## **Pregunta 2:**
+
+#### **Hipótesis:**
+Las hipótesis son:
+
+* $H_0$:
+* $H_A$:
+
+#### **Conclusión:**

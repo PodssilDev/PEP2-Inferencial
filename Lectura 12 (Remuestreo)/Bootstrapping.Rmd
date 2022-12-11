@@ -1,0 +1,191 @@
+---
+title: "Remuestreo"
+date: "2022-11-05"
+output: html_document
+---
+
+## Bootstrapping para 2 Muestras Independientes
+```{r setup, include=FALSE}
+if(!require(ggpubr)){
+  install.packages("ggpubr",dependencies = TRUE)
+  require(ggpubr)
+}
+if(!require(simpleboot)){
+  install.packages("simpleboot",dependencies = TRUE)
+  require(simpleboot)
+}
+if(!require(boot)){
+  install.packages("boot",dependencies = TRUE)
+  require(boot)
+}
+if(!require(bootES)){
+  install.packages("bootES",dependencies = TRUE)
+  require(bootES)
+}
+if(!require(nortest)){
+  install.packages("nortest",dependencies = TRUE)
+  require(nortest)
+}
+```
+
+### Se fija una semilla
+```{r}
+set.seed(2349)
+```
+
+### Creación del dataset de acuerdo a los datos entregados
+```{r}
+materna <- c(87.9, 92.5, 88.1, 89.9, 87.8, 92.6, 88.0, 91.2, 86.8, 87.0, 88.0, 
+             91.3, 89.2, 88.2)
+formula <- c(91.7, 87.9, 87.6, 88.1, 89.2, 87.4, 93.8, 89.1, 88.4, 89.4, 91.8,
+             87.0, 87.7, 89.5, 87.9, 88.2)
+n_materna <- length(materna)
+n_formula <- length(formula)
+leche <- c(rep("Materna", n_materna), rep("Fórmula", n_formula))
+estatura <- c(materna, formula)
+datos <- data.frame(estatura, leche)
+summary(datos)
+```
+
+## Hipótesis
+* $H_0$: No existe diferencia en la estatura promedio entre los niños varones de dos años que se alimentan con leche materna con los que se alimentan con leche de fórmula.
+* $H_A$: Existe diferencia en la estatura promedio entre los niños varones de dos años que se alimentan con leche materna con los que se alimentan conleche de fórmula.
+
+### Hipótesis Matemática
+* Sea μm la media de la estatura de los niños de dos años que se alimentan de leche materna y μf la media de la estatura de 
+los niños de dos años que se alimentan de leche de fórmula:
+
+* $H_0$ μm – μf = 0
+* $H_A$ μm – μf != 0
+
+### Comprobar normalidad de las muestras
+```{r}
+alfa <- 0.05
+shapiro.test(materna)
+shapiro.test(formula)
+```
+
+### Calcular la diferencia observada entre las medias muestrales
+```{r}
+media_materna <- mean(materna)
+media_formula <- mean(formula)
+valor_nulo <- 0
+valor_observado <- media_materna - media_formula # Valor observado o diferencia
+cat("Diferencia Observada:",valor_observado)
+```
+
+### Creación Distribución Bootstrap
+```{r}
+B <- 9999
+alfa <- 0.05
+distribucion_bootstrap <- two.boot(materna, formula, FUN = mean, R = B)
+valores <- data.frame(distribucion_bootstrap$t)
+colnames(valores) <- "valores"
+```
+
+### Histograma
+```{r}
+histograma <- gghistogram(valores, x = "valores", color = "red",
+                          fill = "red", bins = 100,
+                          xlab = "Diferencia de medias",
+                          ylab = "Frecuencia", add = "mean")
+print(histograma)
+```
+
+### Gráfico Q-Q
+```{r}
+qq <- ggqqplot(valores, x = "valores", color = "red")
+print(qq)
+```
+Del histograma es posible observar como la forma de los datos describe una distribución normal, además el grafico Q-Q no muestra ningún dato atípico, es por esto que es posible afirmar que los datos remuestreados ahora si cumplen con el supuesto de normalidad.
+
+### Media y desviación de la distribución bootstrap generada
+```{r}
+cat("Distribución bootstrap:\n")
+cat("\tMedia:", mean(valores$valores), "\n")
+cat("\tDesviación estándar:", sd(valores$valores), "\n\n")
+```
+
+### Construcción del intervalo de confianza.
+```{r}
+intervalo_bca <- boot.ci(distribucion_bootstrap, conf = 1 - alfa,                         type = "bca")
+print(intervalo_bca)
+```
+
+### Cálculo de la prueba de hipótesis
+```{r}
+desplazamiento <- mean(distribucion_bootstrap[["t"]]) - valor_nulo
+distribucion_nula <- distribucion_bootstrap[["t"]] - desplazamiento
+```
+
+### Se calcula el p-value
+```{r}
+p <- (sum(abs(distribucion_nula) > abs(valor_observado)) + 1) / (B + 1)
+cat("p-value:", p)
+```
+
+## Conclusión
+La diferencia entre las medias tiene un valor de 0.1354 y se encuentra dentro del intervalo de confianza [-1.2357, 1.4616], además tomando en consideración el valor p obtenido igual a 0.8445, resultado bastante mayor al nivel de significación alfa = 0.05 por lo que se falla en rechazar la hipótesis nula. En conclusión, es posible afirmar con 95% de confianza que no existe diferencia en las estaturas promedio entre los niños varones de dos años que se alimentan con leche materna con los que se alimentan con leche de fórmula.
+
+## Bootstrapping para 2 Muestras Pareadas
+
+Se desea saber si existe diferencia entre las calificaciones obtenidas en la primera y la segunda prueba
+### Datos
+```{r}
+set.seed (432)
+alumno <- 1:20
+prueba_1 <- c(3.5 , 2.7 , 1.0 , 1.8 , 1.6 , 4.3 , 5.8 , 6.4 , 3.9 , 4.3 , 3.4 ,5.3 , 5.8 , 5.3 , 2.0 , 1.3 , 4.0 , 5.3 , 1.6, 3.6)
+prueba_2 <- c(5.2 , 5.1 , 5.9 , 4.8 , 1.4 , 2.3 , 6.8 , 5.3 , 3.1 , 3.8 , 4.6 ,1.2 , 3.9 , 2.0 , 1.7 , 3.3 , 6.0 , 4.8 , 6.9 , 1.3)
+data.frame(alumno, prueba_1, prueba_2)
+```
+
+### Remuestreo
+```{r}
+diferencia <- prueba_2 - prueba_1 # Se crea una nueva columna de diferencia
+B <- 3999
+valor_nulo <- 0
+valor_observado <- mean ( diferencia )
+distribucion_bootstrapES <- bootES( diferencia , R = B , ci.type = "bca",ci.conf = 1 - alfa , plot = FALSE )
+print (distribucion_bootstrapES )
+distribucion_nula <- distribucion_bootstrapES [["t"]] - valor_nulo
+```
+
+### p-value
+```{r}
+p <- ( sum( abs( distribucion_nula ) > abs( valor_observado ) ) + 1) / ( B + 1)
+cat (" Valor p:", p )
+```
+
+### Conclusión
+A partir del resultado anterior, concluimos con 95 % de confianza que, en promedio, la diferencia de las medias
+para las calificaciones de la primera y la segunda evaluación se encuentra en el intervalo (−0, 656; 1, 439), por
+lo que no podemos desechar la idea de que no existe una diferencia estadísticamente significativa entre ellas
+ 
+### Con distinto valor nulo (0.5)
+Ahora la Universidad del ejemplo desea saber si la diferencia promedio entre las calificaciones obtenidas en
+la primera y la segunda prueba de un curso inicial de programación es de 5 décimas. Así, considerando un
+nivel de significación α = 0, 05, los investigadores formulan las siguientes hipótesis:
+
+Sea µdif la media de las diferencias en las calificaciones obtenidas por los estudiantes en la primera y la
+segunda prueba del curso inicial de programación de la Universidad, entonces:
+H0: µdif = 0,5
+H0: µdif ̸= 0,5
+
+```{r}
+valor_nulo <- 0.5
+distribucion_nula <- distribucion_bootstrapES[["t"]] - valor_nulo
+```
+
+### p-value
+```{r}
+p <- (sum( abs( distribucion_nula ) > abs( valor_observado ) ) + 1) / ( B + 1)
+cat (" Valor p:", p )
+```
+
+### Conclusión
+Tras efectuar la prueba de hipótesis mediante bootstrapping obtienen un valor p de p = 0.5725,
+por lo que la evidencia no es suficientemente fuerte como para rechazar la hipótesis nula. En consecuencia,
+los investigadores concluyen con 95 % de confianza que no hay razones para no pensar que la diferencia de
+las calificaciones obtenidas en ambas evaluaciones es de 5 décimas
+
+

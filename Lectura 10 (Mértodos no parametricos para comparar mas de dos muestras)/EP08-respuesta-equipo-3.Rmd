@@ -1,0 +1,201 @@
+---
+title: "EP8"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+library("tidyverse")
+library("rcompanion")
+library("WRS2")
+library("ggpubr")
+```
+
+Lectura de Datos
+```{r}
+datos <- read.csv("EP07 Datos.csv",header=TRUE, sep = ",")
+```
+
+#### Pregunta 1: La memorista sospecha que hay diferencias significativas en el tiempo de ejecución entre las versiones del algoritmo cuando las instancias de prueba tienen 90 o más nodos. ¿Los datos respaldan la intuición de la memorista? Para responder, filtren los datos para tener las instancias con 90 o más nodos y seleccionen las columnas con los tiempos de ejecución registrados (en formato ancho). Usando como semilla el valor 47, obtengan muestras aleatorias independientes de 14, 13 y 12 tiempos registrados por las versiones A, B y C, respectivamente. Lleven los datos a formato largo y utilicen una prueba no paramétrica para analizar las muestras obtenidas.
+
+Considerando el enunciado, podemos definir la Hipótesis Nula e Hipótesis Alternativa:
+
+* $H_0$: No existen diferencias significativas en el tiempo de ejecución entre las versiones A, B y C del algoritmo cuando las instancias tienen 90 o más nodos.
+
+* $H_A$: Existen diferencias significativas en el tiempo de ejecución entre las versiones A, B y C del algoritmo cuando las instancias tienen 90 o más nodos.
+
+En lenguaje matemático, lo anterior seria:
+
+* $H_0: μA = μB = μC$
+
+* $H_A: μA≠μB ∨ μA=μC ∨ μB=μC$
+
+#### Filtrado de datos
+```{r}
+# Se setea la semilla 47
+set.seed(47)
+# Se filtran los datos y se obtienen instancias con 90 o más nodos, formato ancho
+data_ancho_ej1 <- datos %>% filter(n.nodos >= 90)
+```
+
+#### Obtención de muestra
+```{r}
+filas <- sample(1:nrow(data_ancho_ej1),39)
+TiempoA <- data_ancho_ej1$tiempo.A[1:14]
+TiempoB <- data_ancho_ej1$tiempo.B[15:27]
+TiempoC <- data_ancho_ej1$tiempo.C[28:39]
+Tiempo <- c(TiempoA, TiempoB, TiempoC)
+Algoritmo <- c(rep("A",14),rep("B",13),rep("C",12))
+# Se obtienen los datos en formato largo
+data_long_ej1 <- data.frame(Algoritmo,Tiempo)
+```
+
+#### Condiciones de prueba Kruskal-Wallis
+
+* La variable independiente debe tener a lo menos 2 niveles: En este caso nuestra variable independiente es el algoritmo que tiene 3 versiones o niveles a evaluar: (Algoritmo A, B y C)
+
+* La escala de la variable dependiente debe ser a lo menos ordinal: El tiempo está en milisegundos por lo que no se tiene infinitos valores en un intervalo, además podemos saber que tiempo es mejor que otro.
+
+* Las observaciones son independientes entre sí: Cada versión del algoritmo fue ejecutada de manera independiente y además la muestra fue obtenida por la función sample de manera aleatoria.
+
+#### Aplicación de la prueba Kruskal-Wallis
+```{r}
+alfa = 0.01
+kruskal_test <- kruskal.test(Tiempo ~ Algoritmo, data_long_ej1)
+print(kruskal_test)
+```
+```{r echo=FALSE}
+cat("Con un p-value de",kruskal_test$p.value,"y un alfa de",alfa,". Con 99% de confianza se falla en aceptar la hipótesis nula, en favor de la hipótesis alternativa, por lo que se debe realizar un procedimiento pos hoc para ver donde están las diferencias en los tiempos de ejecución de estos 3 algoritmos.")
+```
+
+#### Procedimiento post-hoc de Holm y Bonferroni
+```{r}
+pairwise.wilcox.test(data_long_ej1$Tiempo, data_long_ej1$Algoritmo, p.adjust.method = "holm", paired = FALSE)
+pairwise.wilcox.test(data_long_ej1$Tiempo, data_long_ej1$Algoritmo, p.adjust.method = "bonferroni", paired = FALSE)
+```
+
+Dados los resultados de las correcciones de Holm y Bonferroni, con 99% de confianza podemos concluir que existen diferencias significativas entre los tiempos de ejecución promedio entre el par de algoritmos A-C.
+
+#### Pregunta 2: La memorista también sospecha que, al comparar las mismas instancias de prueba con 80 o más nodos, las mejores soluciones encontradas por las diferentes versiones del algoritmo tienen rendimientos distintos. ¿Estará en lo cierto? Para responder, filtren los datos para tener las instancias con 80 o más nodos y seleccionen las columnas con los mejores rendimientos registrados. Usando como semilla el valor 71, obtengan una muestra aleatoria de 22 instancias. Lleven los datos a formato largo y utilicen una prueba no paramétrica apropiada para analizar los datos obtenidos.
+
+Considerando el enunciado, podemos definir la Hipótesis Nula e Hipótesis Alternativa:
+
+* $H_0$: No existen diferencias significativas en el tiempo de las mejores soluciones encontradas A, B y C del algoritmo cuando las instancias tienen 80 o más nodos.
+
+* $H_A$: Existen diferencias significativas en el tiempo de las mejores soluciones encontradas A, B y C del algoritmo cuando las instancias tienen 80 o más nodos.
+
+En lenguaje matemático, lo anterior seria:
+
+* $H_0: μA = μB =μC$
+
+* $H_A: μA≠μB∨μA=μC∨μB=μC$
+
+#### Filtrado de datos
+```{r}
+# Se setea la semilla 71
+set.seed(71)
+# Se filtran los datos y se obtienen instancias con 80 o más nodos
+data_ancho_ej2 <- (datos %>% filter(n.nodos >= 80))
+```
+
+#### Obtención de muestra
+```{r}
+filas <- sample(1:nrow(data_ancho_ej2),22)
+Mejor_A <- data_ancho_ej2$mejor.A[filas]
+Mejor_B <- data_ancho_ej2$mejor.B[filas]
+Mejor_C <- data_ancho_ej2$mejor.C[filas]
+Instancia <- data_ancho_ej2$instancia[filas]
+Algoritmo <- c(rep("A",22),rep("B",22),rep("C",22))
+Mejor <- c(Mejor_A,Mejor_B,Mejor_C)
+
+# Se obtienen los datos en formato largo
+data_long_ej2 <- data.frame(Instancia,Algoritmo,Mejor)
+```
+
+#### Condiciones de prueba de Friedman
+
+* La variable independiente debe ser categórica y tener a lo menos 3 niveles: En este caso nuestra variable independiente es el algoritmo que tiene 3 versiones o niveles a evaluar: (Algoritmo A, B y C)
+
+* La escala de la variable dependiente debe ser a lo menos ordinal: El mejor tiempo está en milisegundos por lo que no se tiene infinitos valores en un intervalo, además podemos saber que tiempo es mejor que otro.
+
+* Los sujetos son una muestra aleatoria e independiente de la población: La muestra fue obtenida de forma aleatoria por la función sample.
+
+#### Aplicación de la prueba de Friedman
+```{r}
+alfa <- 0.01
+friedman_test <- friedman.test(Mejor ~ Algoritmo | Instancia, data = data_long_ej2)
+print(friedman_test)
+```
+```{r echo = FALSE}
+cat("Con un p-value de",friedman_test$p.value, "y un alfa de",alfa,".Con 99% de confianza se falla en aceptar la hipótesis nula, en favor de la hipótesis alternativa, por lo que se debe realizar un procedimiento pos hoc para ver donde están las diferencias en las instancias conformadas por 3 algoritmos, con respecto a los mejores tiempos.")
+```
+
+#### Procedimiento post-hoc de Holm y Bonferroni
+```{r}
+pairwise.wilcox.test(data_long_ej2$Mejor, data_long_ej2$Algoritmo, p.adjust.method = "holm", paired = TRUE)
+pairwise.wilcox.test(data_long_ej2$Mejor, data_long_ej2$Algoritmo, p.adjust.method = "bonferroni", paired = TRUE)
+```
+
+Dados los resultados de las correcciones de Holm y Bonferroni, con 99% de confianza podemos concluir que existen diferencias significativas entre los mejores tiempos de ejecución promedio entre los pares de algoritmos B-C y hay una mayor diferencia entre el par A-C
+
+#### Pregunta 3: Vuelva a analizar los datos obtenidos en la pregunta 1, esta vez usando un método basado en la estadística robusta
+
+#### Justificación de elección
+En este caso tenemos 3 grupos independientes, cada grupo tiene tamaños muestrales distintos, por lo tanto nuestra elección es la prueba *t1way*, que utiliza un procedimiento similar a ANOVA usando medias truncadas y por si es pertinente su análisis pos hoc, se aplicará la prueba *lincon*, para este ejercicio no se consideró el remuestreo por bootstrapping.
+
+#### Aplicación de la prueba robusta t1way(usando medias truncadas) para 3 grupos independientes
+```{r}
+alfa <- 0.01
+gamma <- 0.2
+metodo_robusto_1 <- t1way(Tiempo ~ Algoritmo,
+                            data = data_long_ej1,
+                            tr = gamma,
+                            alpha = alfa)
+print(metodo_robusto_1)
+```
+```{r echo = FALSE}
+cat("Con un p-value de",metodo_robusto_1$p.value, "y un alfa de",alfa,". Con 99% de confianza se falla en aceptar la hipótesis nula, en favor de la hipótesis alternativa, por lo que se debe realizar un procedimiento post hoc para ver dónde están las diferencias en los tiempos de ejecución de estos 3 algoritmos.")
+```
+
+#### Procedimiento Post-hoc
+```{r}
+pos_hoc_1 <- lincon(Tiempo ~ Algoritmo,
+                    data = data_long_ej1,
+                    tr = gamma,
+                    alpha = alfa)
+print(pos_hoc_1)
+```
+```{r echo = FALSE}
+cat("Según el procedimiento post hoc de lincon con medias truncadas obtenemos que entre A-B con un p.value de 0.00001 tenemos un psihat o cuantificador de cuanto la muestra diverge de la hipótesis nula, en este caso que existe una diferencia entre cada par a analizar. Entre (A-B) psihat: -853771.9. Un valor extremo, donde no parece haber una diferencia significativa. Para (A-C) con un p.value de 0.04059 tenemos un psihat -154799.8	y finalmente entre (B-C) con un p.value de 0.00009 un psihat 698972.1. Por lo tanto, con un p.value de 0.04 y un alfa de 0.01 se acepta la hipótesis nula que existe una diferencia significativa entre el par de algoritmos (A-C) además tiene un valor más cercano de psihat con un límite de confianza inferior por medias truncadas de -397197.9 y superior de 87598.3.")
+```
+
+#### Pregunta 4: Repita el proceso con los datos conseguidos en la pregunta 2
+#### Justificación de elección
+En este caso tenemos 3 grupos correlacionados y pareados, dado que se utilizó ANOVA, si no un método no paramétrico, se viola la condición de esfericidad, por lo tanto, nuestra elección es la prueba robusta *rmanova*, que utiliza un procedimiento similar a ANOVA de muestras correlacionadas, usando medias truncadas y por si es pertinente su análisis pos hoc, se aplicará la prueba *rmmcp*, para este ejercicio no se consideró el remuestreo por bootstrapping.
+
+#### Aplicación de la prueba robusta rmanova(usando medias truncadas) para 3 grupos correlacionados
+```{r}
+alfa <- 0.01
+gamma <- 0.2
+metodo_robusto_2 <- rmanova(y = data_long_ej2$Mejor,
+                              groups = data_long_ej2$Algoritmo,
+                              blocks = data_long_ej2$Instancia,
+                              tr = gamma)
+print(metodo_robusto_2)
+```
+```{r echo = FALSE}
+cat("Con un p-value de",metodo_robusto_2$p.value, "y un alfa de",alfa,". Con 99% de confianza se falla en aceptar la hipótesis nula, en favor de la hipótesis alternativa, por lo que se debe realizar un procedimiento post hoc para ver dónde están las diferencias en las instancias conformadas por 3 algoritmos, con respecto a los mejores tiempos.")
+```
+
+#### Procedimiento Post-hoc
+```{r}
+pos_hoc_2 <- rmmcp(y = data_long_ej2$Mejor,
+                   groups = data_long_ej2$Algoritmo,
+                   blocks = data_long_ej2$Instancia,
+                   alpha = alfa,
+                   tr = gamma)
+print(pos_hoc_2)
+```
+```{r echo = FALSE}
+cat("Según el procedimiento post hoc de rmmcp con medias truncadas obtenemos que entre los algoritmos A-B con un p.value de 0.00922, entre (A-C) con un p.value de 0.7594 y finalmente entre (B-C) con un p.value de 0.002. Sin embargo dados los p-values obtenidos, solamente entre A-C con alfa de 0.01 se acepta la hipótesis nula, es decir que hay diferencias, los otros pares de algoritmos (A-B) y (B-C) tienen p.values bajos, por lo tanto no son aceptados con 99% de confianza.")
+```

@@ -1,0 +1,369 @@
+---
+title: "**Lectura 08**"
+author: "**John Serrano y Nícolas Farfán**"
+date: "**`r Sys.Date()`**"
+output: html_document
+---
+
+#### **Transformación Lineal**
+
+Las transformaciones lineales son las más sencillas de las transformaciones, y para hacerlas nos basta con aplicar una función lineal, es decir, de la forma presentada en la siguiente ecuación, donde m y n son constantes.
+$$Yi = m \cdot xi + n$$
+A modo de ejemplo, consideremos la conversión de grados Celsius a grados Fahrenheit:
+$$F=1,8 \cdot C + 32$$
+```{r}
+# Crear un vector con cuatro observaciones en grados Celsius.
+Celsius <- c(-8, 0, 29.8, 100)
+# Aplicar transformación lineal para convertir a grados Fahrenheit.
+Fahrenheit <- 1.8 * Celsius + 32
+# Mostrar los resultados.
+cat ("Temperaturas en grados Celsius")
+print(Celsius)
+cat ("Temperaturas en grados Fahrenheit")
+print(Fahrenheit)
+```
+
+#### **Transformación Logarítmica**
+
+La transformación logarítmica nos puede servir cuando tenemos distribuciones muy asimétricas, pues ayuda a reducir la desviación y así facilita el cumplimiento de la condición de normalidad requerida por muchas de las pruebas estadísticas que ya conocemos. En R, esta transformación puede hacerse gracias a la función **log(x, base)**, aunque debemos tener cuidado con posibles valores iguales a 0.
+
+```{r}
+library (ggpubr)
+# Cargar datos
+animal<-c("Mountain beaver", "Cow", "Grey wolf", "Goat", "Guinea pig",
+          "Dipliodocus", "Asian elephant", "Donkey", "Horse",
+          "Potar monkey", "Cat" , "Giraffe", "Gorilla", "Human",
+          "African elephant", "Triceratops", "Rhesus monkey", "Kangaroo",
+          "Golden hamster", "Mouse", "Rabbit", "Sheep", "Jaguar",
+          "Chimpanzee", "Brachiosaurus", "Mole", "Pig")
+
+body_weight<-c(1.35, 465, 36.33, 27.66, 1.04, 11700, 2547, 187.1, 521, 10,
+               3.3, 529, 207, 62, 6654, 9400, 6.8, 35, 0.12, 0.023, 2.5,
+               55.5, 100, 52.16, 87000, 0.122, 192)
+
+brain_weight <- c(465, 423, 119.5, 115, 5.5, 50, 4603, 419, 655, 115, 25.6,
+                  680, 406, 1320, 5712, 70, 179, 56, 1, 0.4, 12.1, 175, 157,
+                  440, 154.5, 3, 180)
+
+datos <- data.frame (animal, body_weight, brain_weight)
+# Aplicar transformación logarítmica
+log_cuerpo <- log(body_weight)
+log_cerebro <- log(brain_weight)
+datos <- data.frame(datos, log_cuerpo, log_cerebro)
+# Histogramas para el peso cerebral antes y después de la transformaci ón
+# logarítmica.
+g3 <-gghistogram(datos, x = "brain_weight", bins = 10,
+                   xlab = "Peso del cerebro [g]", ylab = "Frecuencia",
+                   color = "red", fill = "red")
+
+
+g4 <- gghistogram (datos, x = "log_cerebro", bins = 10,
+                 xlab = "Peso del cerebro [log (g)]", ylab = "Frecuencia",
+                 color = "red", fill = "red")
+# Crear una única figura con ambos histogramas.
+histograma <- ggarrange (g3, g4, ncol = 2, nrow = 1)
+titulo <- text_grob ("Efecto de la transformación logarítmica",
+                    face = "bold", size = 14)
+histograma <- annotate_figure (histograma, top = titulo)
+print (histograma)
+# Gráficos de dispersión para la relación entre peso corporal y peso del
+# cerebro, antes y después de aplicar la transformación logarítmica.
+g1 <- ggscatter (datos, x = "body_weight", y = "brain_weight",
+                 color = "red", xlab = "Peso corporal [Kg]",
+                 ylab = "Peso del cerebro [g]") + rotate_x_text (45)
+
+g2 <- ggscatter(datos, x = "log_cuerpo", y = "log_cerebro",
+                color = "red", xlab = "Peso corporal [log(Kg)]",
+                ylab = "Peso del cerebro [log(g)]") + rotate_x_text (45)
+
+# Crear una tinica figura con los graficos de dispersion.
+dispersion <- ggarrange(g1, g2, ncol = 2, nrow = 1)
+
+texto <- "Relacion entre el peso corporal y el peso del cerebro"
+titulo <- text_grob(texto, face = "bold", size = 14)
+dispersion <- annotate_figure(dispersion, top = titulo)
+print (dispersion)
+```
+
+Eso si, tenemos que ser cuidadosos al interpretar los resultados que obtengamos al emplear esta transformación, porque cuando comparamos medias de datos tras una transformacion logaritmica, en realidad estamos comparando medias geométricas! Si dos variables a las que se le ha aplicado Transformación Logaritmica tienen igual media, entonces las medias geométricas de las variables originales son iguales.
+
+#### **Escalera de Potencias de Tuckey**
+
+Mas general que la transformaci6n logaritmica, la escalera de potencias de Tukey nos ayuda a cambiar la forma de una distribucién asimétrica para que se asemeje a la normal. Este método consiste en explorar relaciones de la siguient forma:
+
+$$ y = x^\lambda$$
+Donde $\lambda$ puede tomar cualquier valor real y se escoge de modo que la distribución de los datos transformados sea lo mas cercana a la normal posible. También es útil al explorar la relación entre dos variables, en cuyo caso se busca obtener un grafico de dispersión en que los puntos se asemejen a una recta.
+
+Formalmente, la transformacion de Tukey se define según la siguiente ecuación aunque (por la falta de computadores) suelen usarse tnicamente aquellas que se muestran a continuación de la ecuaión. Fijémonos en que si $\lambda$ = 1, no se realiza transformacion alguna, y que para el caso de $\lambda$ = 0, se tiene que $x^0$ = 1, por lo que se reemplaza en este caso por la transformacién logaritmica.
+
+$$x_\lambda = \left\{ \begin{array}{lcc}
+             x^\lambda & \lambda > 0\\
+             \\ log(x) &  \lambda = 0 \\
+             \\ -(x^\lambda) & \lambda < 0
+             \end{array} \right.$$
+             
+* $\lambda =  -2$ ----- $x = - \frac{1}{x^2}$
+* $\lambda =  -1$ ----- $x = - \frac{1}{x}$
+* $\lambda =  -\frac{1}{2}$ ----- $x = - \frac{1}{\sqrt{x}}$
+* $\lambda =  0$ ----- $x = log(x)$
+* $\lambda =  \frac{1}{2}$ ----- $x = \sqrt{x}$
+* $\lambda =  1$ ----- $x = x$
+* $\lambda =  2$ ----- $x = x^2$
+
+Como podemos suponer, reducir la asimetria nos ayuda a cumplir el requisito de normalidad que imponen muchas pruebas estadisticas, permitiéndonos asi lograr resultados te6ricamente mas precisos. Sin embargo, una vez mas tenemos que ser cuidadosos y tener en cuenta la transformación realizada al momento de interpretar los resultados. Si bien tenemos certeza que si se encuentran diferencias significativas en la variable transformada, estas diferencias también existen en la variable original, los estadisticos y los intervalos de confianza no son los mismos que arrojarian las pruebas con los datos originales!
+
+En R, el paquete rcompanion incluye la funcion **transformTukey(x, start, end, int, plotit, verbose, quiet, statistic, returnLambda)**, donde:
+
+* x: vector de valores a transformar.
+* start: valor inicial de $\lambda$ a evaluar.
+* end: valor final de $\lambda$ a evaluar.
+* int: intervalo entre los valores de $\lambda$ a evaluar.
+* plotit: si toma valor TRUE, entrega los siguientes graficos: 1. Estadistico de la prueba de normalidad versus X. 2. Histograma de los valores transformados. 3. Grafico Q-Q de los valores transformados.
+* verbose: si toma valor TRUE, muestra informacion adicionar sobre la prueba de normalidad con respecto a $\lambda$.
+* quiet: si toma valor TRUE, no muestra informacion alguna por pantalla.
+* statistic: si toma valor 1, usa la prueba de normalidad de Shapiro-Wilk. Con valor 2, usa la prueba de Anderson-Darling.
+* returnLambda: si toma valor TRUE, devuelve el valor de X. Si toma valor FALSE, devuelve los datos transformados.
+
+```{r}
+library (ggpubr)
+library (rcompanion)
+
+# Cargar datos
+
+Year <- c(1610, 1620, 1630, 1640, 1650, 1660, 1670, 1680, 1690, 1700, 1710,
+          1720, 1730, 1740, 1750, 1760, 1770, 1780, 1790, 1800, 1810, 1820,
+          1830, 1840, 1850)
+
+Population <- c(0.00035, 0.002302, 0.004646, 0.026634, 0.050368, 0.075058,
+                0.111935, 0.151507, 0.210372, 0.250888, 0.331711, 0.466185,
+                0.629445, 0.905563, 1.17076, 1.593625, 2.148076, 2.780369,
+                3.929214, 5.308483, 7.239881, 9.638453, 12.86602, 17.069453,
+                23.191876)
+
+datos <- data.frame(Year, Population)
+
+# Grafico de dispersión e histograma.
+
+g1 <- gghistogram(datos, x = "Population", bins = 10,
+                  xlab = "Población (millones)", ylab = "Frecuencia",
+                  color = "blue", fill = "blue")
+
+g2 <- ggscatter(datos, x = "Year", y = "Population", color = "blue",
+                xlab = "Afio", ylab = "Población (millones)")
+
+# Histograma de la población y población por año
+
+original <- ggarrange(g1, g2, ncol = 2, nrow = 1)
+texto <- "Histograma de la población y población por año"
+titulo <- text_grob(texto, face = "bold", size = 14)
+original <- annotate_figure(original, top = titulo)
+
+print (original)
+
+# Transformaciones de la poblacién
+
+lambda_menos_dos <- -1 / (datos$Population ** 2)
+lambda_menos_uno <- -1 / datos$Population
+lambda_menos_un_medio <- -1 / sqrt (datos$Population)
+lambda_cero <- log(datos$Population)
+
+lambda_un_medio <- sqrt (datos$Population)
+lambda_dos <- datos$Population ** 2
+
+transformaciones <- data.frame(datos, lambda_menos_dos, lambda_menos_uno,
+                               lambda_menos_un_medio, lambda_cero,
+                               lambda_un_medio, lambda_dos)
+
+# Graficos de dispersión para la transformación de Tukey de la población y el
+# año, usando distintos valores de lambda.
+
+gt1 <- ggscatter(transformaciones, x = "Year", y = "lambda_menos_dos",
+                 color = "blue", xlab = "Año",
+                 ylab = "lambda = -2") + rotate_x_text (45)
+
+gt2 <- ggscatter(transformaciones, x = "Year", y = "lambda_menos_uno",
+                 color = "blue", xlab = "Año",
+                 ylab = "lambda = -1") + rotate_x_text (45)
+
+gt3 <- ggscatter(transformaciones, x = "Year", y = "lambda_menos_un_medio",
+                 color = "blue", xlab = "Año",
+                 ylab = "lambda = -1/2") + rotate_x_text (45)
+
+gt4 <- ggscatter (transformaciones, x = "Year", y = "lambda_cero",
+                  color = "blue", xlab = "Año",
+                  ylab = "lambda = 0") + rotate_x_text (45)
+
+gt5 <- ggscatter (transformaciones, x = "Year", y = "lambda_un_medio",
+                  color = "blue", xlab = "Año",
+                  ylab = "lambda = 1/2") + rotate_x_text (45)
+
+gt6 <- ggscatter(transformaciones, x = "Year", y = "lambda_dos",
+                 color = "blue", xlab = "Afio",
+                 ylab = "lambda = 2") + rotate_x_text (45)
+
+# Crear una tnica figura con todos los graficos de dispersion.
+dispersion <- ggarrange(gt1, gt2, gt3, gt4, gt5, gt6, ncol = 3, nrow = 2)
+
+texto <- "Población transformada por año"
+titulo <- text_grob(texto, face = "bold", size = 14)
+dispersion <- annotate_figure(dispersion, top = titulo)
+print (dispersion)
+
+# Histogramas para la transformacién de Tukey de la población y el año,
+# usando distintos valores de lambda.
+h1 <- gghistogram(transformaciones, bins = 10, x = "lambda_menos_dos",
+                  color = "blue", fill = "blue",
+                  xlab = "lambda = -2") + rotate_x_text (45)
+
+h2 <- gghistogram(transformaciones, bins = 10, x= "lambda_menos_uno",
+                  color = "blue", fill = "blue",
+                  xlab = "lambda = -1") + rotate_x_text (45)
+
+h3 <- gghistogram(transformaciones, bins = 10, x = "lambda_menos_un_medio",
+                  color = "blue", fill. = "blue",
+                  xlab = "lambda = -1/2") + rotate_x_text (45)
+
+h4 <- gghistogram(transformaciones, bins = 10, x = "lambda_cero",
+                  color = "blue", fill = "blue",
+                  xlab = "lambda = 0") + rotate_x_text (45)
+
+h5 <- gghistogram(transformaciones, bins = 10, x = "lambda_un_medio",
+                  color = "blue", fill = "blue",
+                  xlab = "lambda = 1/2") + rotate_x_text (45)
+
+h6 <- gghistogram(transformaciones, bins = 10, x = "lambda_dos",
+                  color = "blue", fill = "blue",
+                  xlab = "lambda = 2") + rotate_x_text (45)
+
+# Crear una única figura con todos los graficos de dispersion.
+histograma <- ggarrange(h1, h2, h3, h4, h5, h6, ncol = 3, nrow = 2)
+
+texto <- "Histogramas de la poblacion transformada"
+titulo <- text_grob(texto, face = "bold", size = 14)
+histograma <- annotate_figure(histograma, top = titulo)
+
+print (histograma)
+
+# Buscar la mejor transformación de Tukey usando una función de R.
+transformacion <- transformTukey(datos$Population, start = -4, end = 4,
+                                 int = 0.001, returnLambda = TRUE)
+```
+
+#### **Transformación de Box-Cox**
+
+Es una versión escalada de la Transformación de Tukey:
+
+$$x_\lambda = \frac{x^\lambda - 1}{\lambda}$$ 
+
+Una caracteristica interesante de esta transformacién es que, para cualquier valor de A, $x_{\lambda}$ = 0 cuando x = 1. 
+
+El paquete **DescTools** de R incluye varias funciones que permiten efectuar la transformación Box-Cox. Destacan entre ellas:
+
+* **BoxCoxLambda(x, lower, upper)**: devuelve el valor óptimo de $\lambda$ para la transformacién Box-Cox del vector x.
+
+* **BoxCox(x, lambda)**: devuelve un vector correspondiente a la transformacién Box-Cox de x con parametro lambda.
+
+* **BoxCoxInv(x, lambda)**: revierte la transformacién Box-Cox del vector x con parémetro lambda.
+
+Donde:
+
+* x: vector numérico.
+* lower: limite inferior para los posibles valores de $\lambda$.
+* upper: limite superior para los posibles valores de $\lambda$.
+* lambda: pardmetro de la transformación.
+
+```{r}
+library (ggpubr)
+library (DescTools)
+
+# Cargar datos
+
+Year <- c(1610, 1620, 1630, 1640, 1650, 1660, 1670, 1680, 1690, 1700, 1710,
+          1720, 1730, 1740, 1750, 1760, 1770, 1780, 1790, 1800, 1810, 1820,
+          1830, 1840, 1850)
+
+Population <- c(0.00035, 0.002302, 0.004646, 0.026634, 0.050368, 0.075058,
+                0.111935, 0.151507, 0.210372, 0.250888, 0.331711, 0.466185,
+                0.629445, 0.905563, 1.17076, 1.593625, 2.148076, 2.780369,
+                3.929214, 5.308483, 7.239881, 9.638453, 12.86602, 17.069453,
+                23.191876)
+
+datos <- data.frame(Year, Population)
+# Transformación de Box-cox
+
+box_cox <- function(x, lambda) {
+  if(lambda == 0) {
+    return (log (x))
+    }
+  resultado <- (x ** lambda -1) / lambda
+  return (resultado)
+}
+
+# Transformaciones de la poblacién
+lambda_menos_dos <- box_cox(datos$Population, -2)
+lambda_menos_uno <- box_cox(datos$Population, -1)
+lambda_cero <- box_cox(datos$Population, 0)
+lambda_uno <- box_cox(datos$Population, 1)
+lambda_dos <- box_cox(datos$Population, 2)
+
+transformaciones <- data.frame(datos, lambda_menos_dos, lambda_menos_uno,
+                               lambda_cero, lambda_uno, lambda_dos)
+
+# Graficos de dispersién para la transformacién de Box-Cox de la poblacién y
+# el afio, usando distintos valores de lambda.
+
+gt1 <- ggscatter(transformaciones, x = "Year", y = "lambda_menos_dos",
+                 color = "purple", xlab = "Año",
+                 ylab = "lambda = -2") + rotate_x_text (45)
+
+gt2 <- ggscatter(transformaciones, x = "Year", y = "lambda_menos_uno",
+                 color = "purple", xlab = "Año",
+                 ylab = "lambda = -1") + rotate_x_text (45)
+
+gt3 <- ggscatter(transformaciones, x = "Year", y = "lambda_cero",
+                 color = "purple", xlab = "Año",
+                 ylab = "lambda = 0") + rotate_x_text (45)
+
+gt4 <- ggscatter(transformaciones, x = "Year", y = "lambda_uno",
+                 color = "purple", xlab = "Año",
+                 ylab = "lambda = 1") + rotate_x_text (45)
+
+gt5 <- ggscatter(transformaciones, x = "Year", y = "lambda_dos",
+                 color = "purple", xlab = "Año",
+                 ylab = "lambda = 2") + rotate_x_text (45)
+
+# Crear una tnica figura con todos los graficos de dispersion.
+dispersion <- ggarrange(gt1, gt2, gt3, gt4, gt5, ncol = 3, nrow = 2)
+texto <- "Población transformada por año"
+
+titulo <- text_grob(texto, face = "bold", size = 14)
+dispersion <- annotate_figure(dispersion, top = titulo)
+print (dispersion)
+
+# Buscar la mejor transformación Box-Cox usando funciones de R.
+lambda <- BoxCoxLambda(datos$Population, lower = -4, upper = 4)
+cat("Lambda óptimo:", lambda)
+
+transformacion <- BoxCox(datos$Population, lambda)
+datos <- data.frame(datos, transformacion)
+
+# Graficar los datos transformados.
+gl <- ggqqplot(transformacion, color = "purple")
+print (g1)
+
+g2 <- gghistogram(datos, bins = 10, x = "transformacion", color = "purple",
+                  fill = "purple", xlab = "Poblacién (Box-Cox)",
+                  ylab = "Frecuencia") + rotate_x_text (45)
+
+print (g2)
+
+# Grafico de dispersién para la transformación de Box-Cox de la poblacion y
+# el año, usando lambda óptimo.
+
+g3 <- ggscatter(datos, x = "Year", y = "transformacion",
+                color = "purple", xlab = "Año", 
+                ylab = "lambda 6ptimo") + rotate_x_text (45)
+
+print (g3)
+```
+

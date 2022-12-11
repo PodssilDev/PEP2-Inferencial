@@ -1,0 +1,467 @@
+---
+title: "Lectura 14"
+output:
+  prettydoc::html_pretty:
+    theme: architect 
+    highlight: github
+    math: katex
+---
+
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(scatterplot3d)
+library(leaps)
+library(car)
+```
+
+## Regresión lineal múltiple RLM
+Un fenómeno sea explicado por muchas variables.
+
+Correspondiente al caso de una única respuesta con múltiples
+predictores. $y = b_0 + b_1x_1 + ... + b_kx_k$
+
+- Cada xi es un predictor.
+
+- Cada βi corresponde a un parámetro del modelo.
+
+- k es la cantidad de predictores.
+
+- yˆ es una estimación de la respuesta.
+
+Ajustar el modelo mediante el método de mínimos cuadrados, buscamos minimizar la suma
+de los cuadrados de los residuos (ecuación 13.2), proceso que se vuelve más complejo a medida que aumenta
+la cantidad de variables por lo que suele hacerse mediante el uso de software
+
+### Condiciones
+1. La distribución de los residuos debe ser cercana a la normal.
+
+2. La variabilidad de los residuos debe ser aproximadamente constante.
+
+3. Los residuos deben ser independientes entre sí.
+
+4. Cada variable se relaciona linealmente con la respuesta
+
+Ahora consideremos una RLM con dos predictores para el rendimiento: el peso (columna wt) y el tiempo
+mínimo requerido para recorrer un cuarto de milla (columna qsec)
+
+El procedimiento para ajustar la RLM en R es el mismo que
+usamos en el capítulo anterior, pero ahora en el lado derecho de la fórmula para ajustar el modelo tenemos
+que combinar ambos predictores.
+
+
+```{r }
+#library(scatterplot3d)
+
+# Cargar los datos.
+datos <- mtcars
+
+# Ajustar modelo usando validación cruzada de 5 pliegues.
+modelo <- lm(mpg ~ wt + qsec, data = datos)
+print(summary(modelo))
+
+# Graficar modelo ajustado.
+g <- scatterplot3d(datos$wt, datos$qsec, datos$mpg, type = "p",
+                   highlight.3d = TRUE, pch = 20, xlab = "Peso [lb x 1000]",
+                   ylab = "Rendimiento [millas/galón]",
+                   zlab = "1/4 de milla [s]")
+
+g$plane3d(modelo ,draw_polygon = TRUE, draw_lines = TRUE)
+# print(g)
+```
+
+Para usar este modelo a fin de **predecir valores** para la respuesta a partir de un nuevo conjunto de datos,
+usamos una vez más la función predict(), del mismo modo que vimos en el capítulo 12 para la RLS.
+
+Como en este caso tenemos dos predictores, lo que se ajusta ya no es una recta, sino un plano, como muestra la
+figura.
+
+## Regresión lineal múltiple con predictores categóricos
+En el capítulo 12 habíamos señalado que para usar una variable categórica con dos niveles como predictor,
+esta debe ser transformada en una variable indicadora. Desde luego, podemos extender la misma idea para
+el caso de variables categóricas con más niveles.
+
+En R, podemos hacer esta tarea de manera sencilla mediante la función dummy.data.frame(data, names,
+drop) del paquete dummies, donde:
+
+- data: matriz de datos.
+
+- names: nombres de las columnas para las que se desea crear variables artificiales. Si se omite este argumento, se crean variables artificiales para todas las variables categóricas y de tipo string.
+
+- drop: indicador booleano que, cuando es verdadero, descarta la variable original del resultado.
+
+```{r}
+# library(dummies)
+
+# Crear una matrz de datos.
+# sujeto <- 1:10
+# sexo <- c("F", "F", "M", "M", "M", "M", "F", "M", "F", "F")
+# tipo <- c("B", "D", "A", "B", "A", "C", "D", "D", "D", "A")
+# valor <- c(1.68, 2.79, 1.92, 2.26, 2.1, 2.63, 2.19, 3.62, 2.76, 1.26)
+# datos <- data.frame(sujeto , sexo , tipo, valor)
+# 
+# # Crear variables artificiales.
+# datos.dummy <- dummy.data.frame(datos , drop = TRUE)
+# datos.dummy[["sexoF"]] <- NULL
+# datos.dummy[["tipoA"]] <- NULL
+# 
+# # Crear modelos lineales.
+# m1 <- lm(valor ~ sexo + tipo, datos)
+# print(m1)
+# 
+# m2 <- lm(valor ~ sexoM + tipoB + tipoC + tipoD, datos.dummy)
+# print(m2)
+```
+
+ Cabe señalar que la función lm() realiza internamente este proceso cuando
+recibe una variable categórica entre los predictores (las variables indicadoras descartadas en el script 13.2
+replican el resultado que entrega lm()). No obstante, al usar el modelo, debemos fijarnos en que la cantidad
+de predictores categóricos sea la misma, como también en que la cantidad y el orden de sus niveles coincida
+con los del conjunto de entrenamiento.
+
+## Condiciones 
+Llegado este punto, necesitamos examinar con más detalle las condiciones que debemos cumplir para que un
+modelo de regresión lineal sea generalizable:
+
+1. Las variables predictoras deben ser cuantitativas o dicotómicas (de ahí la necesidad de variables indicadoras para manejar más de dos niveles).
+
+2. La variable de respuesta debe ser cuantitativa y continua, sin restricciones para su variabilidad.
+
+3. Los predictores deben tener algún grado de variabilidad (su varianza no debe ser igual a cero). En otras
+palabras, no pueden ser constantes.
+
+4. No debe existir multicolinealidad. Esto significa que no deben existir relaciones lineales fuertes entre
+dos o más predictores (coeficientes de correlación altos).
+
+5. Los residuos deben ser homocedásticos (con varianzas similares) para cada nivel de los predictores.
+
+6. Los residuos deben seguir una distribución cercana a la normal centrada en cero.
+
+7. Los valores de la variable de respuesta son independientes entre sí.
+
+8. Cada predictor se relaciona linealmente con la variable de respuesta.
+
+## Evaluación ajuste
+
+Existen otras alternativas para evaluar la bondad de ajuste de un modelo que se basan en el principio de
+parsimonia, también llamado navaja de Occam, el cual indica que un modelo debe mantenerse tan simple
+como sea posible. Dos de ellas son el criterio de información de Akaike, abreviado AIC, y el criterio
+bayesiano de Schwarz (BIC o SBC), que penalizan el modelo por contener variables adicionales, por lo que
+mientras menor sea su valor, mejor será el modelo. Si bien el cálculo de estas medidas no se detalla aquí por
+ser un tópico más avanzado, podemos obtenerlas en R mediante las funciones AIC(object) y BIC(object),
+donde object corresponde a un modelo lineal ajustado.
+
+Para el modelo que habíamos ajustado usando únicamente el peso como predictor, obtenemos AIC = 166, 03
+y BIC = 170, 43. Del mismo modo, para el modelo que usa como predictores el peso y el cuarto de milla, en
+cambio, tenemos que AIC = 156, 72 y BIC = 162, 58. En consecuencia, el segundo modelo parece ser “mejor”
+bajo estos criterios.
+
+**elegir AIC y BIC menor**
+
+Otra opción, adecuada cuando necesitamos saber cuáles predictores son estadísticamente significativos, es
+observar los valores p asociados a cada predictor. Habitualmente consideraremos significativos aquellos predictores para los cuales p < 0, 05.
+
+## Comparación modelos
+En la sección anterior vimos que métricas como el AIC o el BIC nos pueden resultar útiles para comparar dos
+modelos de regresión lineal, considerando la noción general que un modelo es mejor mientras menor sea su
+valor de AIC (o BIC). 
+
+Cuando los modelos son jerárquicos, es decir, el segundo incorpora nuevos predictores además de mantener
+los del primer modelo, podemos hacer una prueba de hipótesis usando los coeficientes de determinación para
+ver si la diferencia es significativa.
+
+Como ya es habitual, en R podemos hacer esta tarea de forma simple gracias a la función anova(object,
+...), que recibe como argumentos los diferentes modelos a comparar. La interpretación del resultado de
+esta prueba es sencilla: si el valor p obtenido es significativo, entonces el modelo más complejo (con más
+predictores) es mejor.
+
+```{r}
+# Cargar datos.
+datos <- mtcars
+
+# Ajustar modelo con el peso como predictor.
+modelo_1 <- lm(mpg ~ wt, data = datos)
+print(summary(modelo_1))
+aic_1 <- AIC(modelo_1)
+cat("Modelo 1: AIC =", AIC(modelo_1), "\n")
+
+# Ajustar modelo con el peso y el cuarto de milla como predictores.
+modelo_2 <- lm(mpg ~ wt + qsec, data = datos)
+print(summary(modelo_2))
+aic_2 <- AIC(modelo_2)
+cat("Modelo 2: AIC =", AIC(modelo_2), "\n")
+
+# Comparar ambos modelos.
+comparacion <- anova(modelo_1, modelo_2)
+print(comparacion)
+```
+
+## Selección de predictores
+
+La cuarta condición para emplear RLM indica que debemos evitar la multicolinealidad. Esto es importante
+porque el ajuste de un modelo RLM asume que podemos cambiar una variable predictora, manteniendo las
+otras constantes. Cuando las variables predictoras están correlacionadas, se hace imposible cambiar el valor
+de una sin alterar también a las demás, desestabilizando la estimación de los coeficientes del modelo que
+indican cómo influye cada variable predictora en la variable de salida de forma independiente.
+
+Cuando existe colinealidad, los valores de los coeficientes varían enormemente si se agregan o quitan unos
+pocos datos de entrenamiento y se reduce el poder estadístico del modelo. Por esta razón, es importante
+que escojamos con cuidado las variables predictoras a considerar en un modelo RML. 
+
+El método más adecuado, aunque también el más complejo, es la regresión jerárquica. Es el que debemos
+considerar al momento de intentar probar una teoría y consiste en comenzar por incorporar en primer lugar
+aquellos predictores ya conocidos, en orden de importancia, en base a investiagiones previas. Una vez incorporados todos los predictores ya conocidos, podemos incorporar otros nuevos si creemos que existen buenas
+y justificadas razones para ello. Antes de la masificación de los computadores y de entornos como R, ¡esta
+era la única alternativa viable!
+
+En R, podemos realizar este método con ayuda de la función update(object, formula), que nos permite
+incorporar o quitar variables del modelo, donde:
+
+- object: modelo previamente ajustado, en este caso con lm().
+
+- formula: actualización de la fórmula para el nuevo modelo.
+```{r}
+# Cargar datos.
+datos <- mtcars
+
+# Ajustar modelo inicial con la variable wt como predictor.
+modelo <- lm(mpg ~ wt, data = datos)
+cat("=== Modelo inicial ===\n")
+print(modelo)
+
+# Incorporar el predictor cyl.
+modelo <- update(modelo, . ~ . + cyl)
+cat("=== Modelo con predictores wt y cyl ===\n")
+print(modelo)
+
+# Quitar el predictor wt.
+modelo <- update(modelo, . ~ . - wt)
+cat("=== Modelo con predictor cyl ===\n")
+print(modelo)
+
+# Agregar predictores wt y drat, y quitar predictor cyl.
+modelo <- update(modelo, . ~ . + wt + drat - cyl)
+cat("=== Modelo con predictores wt y drat ===\n")
+print(modelo)
+```
+
+Si, en lugar de probar una teoría, lo que queremos es explorar los datos, podemos usar otras estrategias
+
+1. **Selección hacia adelante**: 
+
+- Se crea un modelo inicial nulo, es decir, sin predictores, para el cual únicamente
+se estima la intercepción. 
+
+- A continuación, se escoge como primer predictor aquel que tenga la correlación
+más alta con la variable de respuesta.
+
+- Para la selección de predictores adicionales, en cada repetición se escoge aquel predictor (que no haya
+sido previamente agregado al modelo) que tenga la máxima correlación semi-parcial con la respuesta, es decir, que explique la máxima porción de la varianza no cubierta por el modelo ya existente.
+Si la inclusión de este nuevo predictor mejora el poder predictivo del modelo, se incorpora de manera
+definitiva y se evalúa el siguiente predictor.
+
+- Adicionalmente, se evalúa si la inclusión de cada nuevo predictor mejora (es decir, reduce) el AIC. Si
+ninguno de los posibles predictores restantes logra reducir este indicador, se detiene la inclusión de
+nuevos predictores.
+
+
+2. **Eliminación hacia atrás**: Un modelo con todas las variables para luego eliminar predictores uno a uno y evaluar el AIC. Si este
+último se reduce, se elimina dicho predictor y se reevalúa la contribución de los predictores que aún se
+encuentran en el modelo.
+
+3. **Regresión escalonada**: Cada vez
+que se incorpora uno nuevo se evalúa qué ocurre al descartar el menos importante.
+
+4. **Todos los subconjuntos**: Algoritmo de fuerza bruta en el que se exploran todos los subconjuntos de predictores.
+
+
+Todas las estrategias mencionadas están disponibles en R con ayuda de la ya conocida función update() y
+las funciones add1(object, scope) y drop1(object, scope), donde:
+
+- object: un modelo ajustado.
+
+- scope: fórmula que proporciona los términos a agregar o quitar.
+
+La función **add1()** evalúa la incorporación de cada nuevo predictor potencial (separadamente) a un modelo
+base y entrega algunas métricas para el efecto que tiene su incorporación, entre ellas el AIC. **El mejor nuevo predictor corresponde, entonces, a aquella variable con el menor AIC.**
+
+De manera similar, la función **drop1()** evalúa (separadamente) la eliminación potencial de cada predictor
+presente en un modelo base y entrega las mismas métricas que add1() para el efecto que tiene su eliminación.
+**El mejor predictor a descartar es, una vez más, aquel que lleva a la mayor reducción en AIC.**
+
+```{r}
+# Cargar datos.
+datos <- mtcars
+
+# Ajustar modelo nulo.
+nulo <- lm(mpg ~ 1, data = datos)
+# cat("=== Modelo nulo ===\n")
+# print(summary(nulo))
+
+# Ajustar modelo completo.
+completo <- lm(mpg ~ ., data = datos)
+# cat("=== Modelo completo ===\n")
+# print(summary(completo))
+
+# Evaluar variables para incorporar.
+print(add1(nulo, scope = completo))
+cat("\n\n")
+
+# Agregar la variable con menor AIC.
+modelo <- update(nulo, . ~ . + wt)
+
+# Evaluar variables para incorporar.
+print(add1(modelo, scope = completo))
+cat("\n\n")
+
+# Agregar la variable con menor AIC.
+modelo <- update(modelo, . ~ . + cyl)
+
+# Evaluar variables para eliminar.
+print(drop1(completo, scope = completo))
+cat("\n\n")
+
+# Eliminar la variable con menor AIC.
+modelo <- update(modelo, . ~ . - cyl)
+```
+
+Por supuesto, R en la práctica ya cuenta con funciones que implementan los métodos para seleccionar predictores antes descritos (excepto la regresión jerárquica, por supuesto). Los tres primeros pueden efectuarse
+mediante la función step(object, scope, direction, trace), que usa add1() y drop1() de manera iterativa, donde:
+
+- object: es un modelo ya ajustado que es usado como punto de partida.
+
+- scope: es una lista de fórmulas que define el rango de modelos a explorar.
+
+- direction: indica el tipo de selección a realizar, donde “forward” corresponde a selección hacia adelante; “backward”, a eliminación hacia atrás, y “both”, a regresión escalonada.
+
+- trace: argumento opcional que indica si se quiere ver por consola el proceso realizado.
+
+```{r}
+#library(leaps)
+
+# Cargar datos.
+datos <- mtcars
+
+# Ajustar modelo nulo.
+nulo <- lm(mpg ~ 1, data = datos)
+cat("=== Modelo nulo ===\n")
+print(summary(nulo))
+
+# Ajustar modelo completo.
+completo <- lm(mpg ~ ., data = datos)
+cat("=== Modelo completo ===\n")
+print(summary(completo))
+
+# Ajustar modelo con selección hacia adelante.
+adelante <- step(nulo, scope = list(upper = completo), direction = "forward",
+                 trace = 0)
+
+cat("=== Modelo con selección hacia adelante ===\n")
+print(summary(adelante))
+cat("AIC =", AIC(adelante), "\n\n")
+
+# Ajustar modelo con eliminación hacia atrás.
+atras <- step(completo, scope = list(lower = nulo), direction = "backward",
+              trace = 0)
+
+cat("=== Modelo con eliminación hacia atrás ===\n")
+print(summary(atras))
+cat("AIC =", AIC(atras), "\n\n")
+
+# Ajustar modelo con regresión escalonada.
+escalonado <- step(nulo, scope = list(lower = nulo, upper = completo),
+                   direction = "both", trace = 0)
+
+cat("=== Modelo con regresión escalonada ===\n")
+print(summary(escalonado))
+cat("AIC =", AIC(escalonado), "\n\n")
+
+# Ajustar modelo con todos los subconjuntos.
+modelos <- regsubsets(mpg ~ ., data = datos, method = "exhaustive",
+                      nbest = 1, nvmax = 10)
+
+print(plot(modelos))
+```
+
+## Evaluación modelo
+### Verificación de las condiciones
+A fin de que el modelo sea generalizable, tenemos que verificar el cumplimiento de las condiciones descritas
+en las primeras páginas de este capítulo. Es sencillo comprobar que las variables predictoras son dicotómicas
+o numéricas a nivel de intervalo y que ninguna de ellas corresponde a una constante. Adicionalmente, las
+observaciones son independientes entre sí por tratarse de modelos diferentes de automóviles que no parecen
+seguir un criterio de selección (más que los años de fabricación). A su vez, podemos comprobar que la variable
+dependiente es numérica a nivel de intervalo sin restricciones.
+
+Al examinar la matriz de correlación (figura 12.4), sin embargo, podemos apreciar una relación positiva
+moderada entre el tiempo mínimo para recorrer un cuarto de milla y el rendimiento (R = 0, 419).
+
+
+####Independencia de los residuos
+Esta condición significa que no debe existir autocorrelación en los residuos. 
+
+La función durbinWatsonTest(model), del paquete car, nos permite aplicar la prueba de Durbin-Watson a
+los residuos. Sin embargo, debemos tener en cuenta que los resultados de esta prueba dependen del orden de
+los datos, por lo que al reordenar los datos se podrían obtener resultados diferentes. Al aplicar esta prueba
+para el ejemplo (script 13.8, línea 12) obtenemos un valor p = 0, 236, por lo que podemos concluir que los
+residuos son, en efecto, independientes.
+
+####Distribución normal de los residuos
+
+Tal como mencionamos previamente, la figura 13.15b muestra que los residuos podrían alejase un poco de la
+distribución normal. Al aplicar la prueba de Shapiro-Wilk (script 13.8, línea 16), obtenemos como resultado
+p = 0, 080, por lo que podemos asumir que el supuesto se cumple, aunque manteniendo cautela por la cercanía
+con el nivel de significación.
+
+####Homocedasticidad de los residuos
+
+Una prueba adecuada para verificar esta condición es la de Breusch-Pagan-Godfrey (Glen, 2016), cuya hipótesis nula es que las varianzas de los residuos son iguales. En R, esta prueba está implementada en la función
+ncvTest(model) del paquete car. Al usarla para el ejemplo (script 13.8, línea 20), obtenemos como resultado
+p = 0, 212, por lo que podemos concluir que el supuesto de homocedasticidad se cumple.
+
+####Multicolinealidad
+Esta condición establece que no debe existir una relación lineal entre dos o más predictores. En otras palabras,
+la correlación entre variables no debe ser muy alta (o muy baja, si la relación es inversa).
+
+El paquete car de R incluye la función vif(model) para calcular el factor de inflación de la varianza.
+
+```{r}
+#library(car)
+
+# Cargar datos.
+datos <- mtcars
+
+# Ajustar modelo.
+modelo <- lm(mpg ~ wt + qsec + am, data = datos)
+
+# Comprobar independencia de los residuos.
+cat("Prueba de Durbin-Watson para autocorrelaciones ")
+cat("entre errores:\n")
+print(durbinWatsonTest(modelo))
+
+# Comprobar normalidad de los residuos.
+cat("\nPrueba de normalidad para los residuos:\n")
+print(shapiro.test(modelo$residuals))
+
+# Comprobar homocedasticidad de los residuos.
+cat("Prueba de homocedasticidad para los residuos:\n")
+print(ncvTest(modelo))
+
+# Comprobar la multicolinealidad.
+vifs <- vif(modelo)
+cat("\nVerificar la multicolinealidad:\n")
+cat("- VIFs:\n")
+print(vifs)
+cat("- Tolerancias:\n")
+print(1 / vifs)
+cat("- VIF medio:", mean(vifs), "\n")
+```
+
+
+

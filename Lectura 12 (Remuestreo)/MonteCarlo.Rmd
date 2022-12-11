@@ -1,0 +1,193 @@
+---
+title: "MonteCarlo"
+date: "2022-11-05"
+output: html_document
+---
+
+```{r}
+library(ggpubr)
+library(ggplot2)
+```
+
+## Prueba de permutaciones para 2 Muestras Independientes
+Denotando como σA a la varianza de las calificaciones finales de estudiantes de 
+primer año de Ingeniería en el curso inicial de programación bajo estudio, y como 
+σB a la varianza de las calificaciones finales de estudiantes de último año de 
+otras carreras en el mismo curso, entonces:
+* H0: σA − σB = 0
+* HA: σA − σB ̸= 0
+
+## Se utiliza un alfa igual a 0.05
+```{r}
+set.seed(432)
+```
+
+## Funcionpara calcular la diferencia de medias
+Argumentos:
+- muestra_1, muestra_2: vectores numericos con las muestras a comparar
+- FUN: funcion del estadistico E para el que se calcula la diferencia
+Valor:
+- diferencia E_1 - E_2
+
+```{r}
+calcular_diferencia <- function(muestra_1, muestra_2, FUN){
+  diferencia <- FUN(muestra_1) - FUN(muestra_2)
+  return(diferencia)
+}
+```
+
+## Funcion para hacer una permutacion y calcular el estadistico
+de interes
+Argumentos:
+- muestra_1, muestra_2: vectores numericos con las muestras a comparar
+- FUN: funcion del estadistico E para el que se calcula la diferencia
+Valor:
+- diferencia E_1 - E_2
+
+```{r}
+permutar <- function(muestra_1, muestra_2, FUN){
+  n_1 <- length(muestra_1)
+  n_2 <- length(muestra_2)
+  
+  # Hacer la permutacion
+  permutacion <- sample(c(muestra_1, muestra_2), size = n_1 + n_2,
+                        replace = FALSE)
+  
+  # Asignar elementos a los dos grupos
+  permutacion_1 <- permutacion[1 : n_1]
+  permutacion_2 <- permutacion[n_1 + 1 : n_2]
+  
+  # Calcular y devolver la diferencia de medias
+  return(calcular_diferencia(permutacion_1, permutacion_2, FUN))
+}
+```
+
+## Funcion para calcular el valor p
+Argumentos:
+- distribucion: distribucion nula del estadistico de interes
+- valor observado: valor del estadistico de interes para las muestras originales
+- repeticiones: cantidad de permutaciones a realizar
+- alternative: tipo de hipotesis alternativa ("two.sided" para
+  hipotesis bilateral, "greater" o "less" para hipotesis unilaterales)
+Valor:
+- el valorp calculado
+```{r}
+calcular_valor_p <- function(distribucion, valor_observado,
+                             repeticiones, alternative){
+  if(alternative == "two.sided"){
+    numerador <- sum(abs(distribucion) > abs(valor_observado)) + 1
+    denominador <- repeticiones + 1
+    valor_p <- numerador / denominador
+  }
+  else if(alternative == "greater"){
+    numerador <- sum(distribucion > valor_observado) + 1
+    denominador <- repeticiones + 1
+    valor_p <- numerador / denominador
+  }
+  else{
+    numerador <- sum(distribucion < valor_observado) + 1
+    denominador <- repeticiones + 1
+    valor_p <- numerador / denominador
+  }
+  return(valor_p)
+}
+```
+
+## Funcion para graficar una distribucion
+Argumentos:
+- distribucion: distribucion nula el estadistico de interes
+- ...: otros argumentos a ser entregados a gghistogram y ggqqplot
+```{r}
+graficar_distribucion <- function(distribucion, ...){
+  observaciones <- data.frame(distribucion)
+  
+  histograma <- gghistogram(observaciones, x = "distribucion",
+                            xlab = "Estadistico de interes",
+                            ylab = "Frecuencia", ...)
+  qq <- ggqqplot(observaciones, x = "distribucion", ...)
+  
+  # Crear una unica figura con todos los graficos de dispersion
+  figura <- ggarrange(histograma, qq, ncol = 2, nrow = 1)
+  print(figura)
+}
+```
+
+## Funcion para hacer la prueba de permutaciones
+Argumentos :
+- muestra_1, muestra_2: vectores numericos con las muestras a comparar
+- repeticiones: cantidad de permutaciones a realizar
+- FUN: funcion del estadistico E para el que se calcula la diferencia
+- alternative: tipo de hipotesis alternativa ("two.sided" para
+  hipotesis bilateral, "greater" o "less" para hipotesis unilaterales)
+- plot: si es TRUE, construye el grafico de la distribucion generada
+- ...: otros argumentos a ser entregados a graficar_distribucion
+```{r}
+contrastar_hipotesis_permutaciones <- function(muestra_1, muestra_2,
+                                               repeticiones, FUN,
+                                               alternative, plot, ...){
+  cat("Prueba de permutaciones\n\n")
+  cat("Hipotesis alternativa:", alternative, "\n")
+  observado <- calcular_diferencia(muestra_1, muestra_2, FUN)
+  cat("Valor observado:", observado, "\n")
+  
+  distribucion <- rep(NA, repeticiones)
+  
+  for(i in 1:repeticiones){
+    distribucion[i] <- permutar(muestra_1, muestra_2, FUN)
+  }
+  
+  if(plot){
+    graficar_distribucion(distribucion, ...)
+  }
+  
+  valor_p <- calcular_valor_p(distribucion, observado, repeticiones,
+                              "two.sided")
+  
+  cat("Valor p:", valor_p, "\n\n")
+}
+```
+
+-------------------------------------------------------------------------------
+Denotando como Ua al promedio de calificaciones finales de estudiantes de primer 
+año de Ingenieria en el curso inicial de programacion bajo estudio, y como Ub al 
+promedio de calificaciones finales de estudiantes de ultimo año de otras carreras
+en el mismo curso, entonces las hipotesis a formular son:
+H0: Ua - Ub = 0
+HA: Ua - Ub != 0
+Se obtiene un p = 0.969, por tanto, se concluye con un 95% de confianza que no existe
+diferencia entre las calificaciones finales de ambos grupos de estudiantes
+Se ha decidido realizar un nuevo esudio con las mismas muestras, comparando ahora
+la diferencia en la variabilidad (manteniendo la misma cantidad de repeticiones e igual
+nivel de significacion
+Denotando como Oa a la varianza de las calificaciones finales de estudiantes de primer 
+año de Ingenieria en el curso inicial de programacion bajo estudio, y como Ob a la varianza 
+de las calificaciones finales de estudiantes de ultimo año de otras carreras en el mismo curso, 
+entonces las hipotesis a formular son:
+H0: Oa - Ob = 0
+HA: Oa - Ob != 0
+Se obteine un p = 0.003, evidencia suficiente para rechazar la hipotesis nula en avor de la 
+hipotesis alternativa.
+
+## Crear muestras iniciales
+```{r}
+a <- c(5.4, 4.7, 6.3, 2.9, 5.9, 5.1, 2.1, 6.2, 1.6, 6.7, 3.0, 3.3,
+       5.0, 4.1, 3.3, 3.4, 1.2, 3.8, 5.8, 4.2)
+b <- c(4.0, 4.1, 4.3, 4.3, 4.3, 4.2, 4.3, 4.3, 4.4, 4.1, 4.3, 4.0)
+```
+
+## Hacer pruebas de permutciones para la media y la varianza
+```{r}
+R = 5999
+contrastar_hipotesis_permutaciones(a, b, repeticiones = R, FUN = mean,
+                                   alternative = "two.sided", plot = TRUE,
+                                   color = "blue", fill = "blue")
+contrastar_hipotesis_permutaciones(a, b, repeticiones = R, FUN = var,
+                                   alternative = "two.sided", plot = FALSE)
+```
+
+## Conclusión
+Tras efectuar el contraste de hipótesis, obtiene como resultado p = 0, 003, 
+evidencia suficiente para rechazar la hipótesis nula en favor de la hipótesis 
+alternativa. Así, el profesor concluye que su percepción no es del todo errada, 
+puesto que la variabilidad de las calificaciones es significativamente mayor para 
+los estudiantes de Ingeniería.

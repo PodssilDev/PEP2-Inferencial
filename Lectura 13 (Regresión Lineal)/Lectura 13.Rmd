@@ -1,0 +1,438 @@
+---
+title: "Lectura 13"
+output:
+  prettydoc::html_pretty:
+    theme: architect 
+    highlight: github
+    math: katex
+---
+
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggpubr)
+library(caret)
+```
+
+# Regresión lineal 
+
+## Regresión lineal simple RLS
+Identificar posibles relaciones entre dos variables cuantitativas.
+
+La RLS asume que la relación entre dos variables, x e y, puede ser modelada mediante una recta $y = b_0 + b_1x$
+
+- β0 (intercepción) y β1 (pendiente) son los parámetros del modelo lineal
+
+- x es la variable explicativa o predictor (variable independiente).
+
+- y es la variable de respuesta o de salida (variable dependiente).
+
+
+#### Tipo relación
+
+Si tuviéramos una relación lineal perfecta entre ambas variables, significaría que se podríamos conocer el
+valor exacto de y con solo conocer el valor de x.
+
+Si los puntos están pegados a la recta lineal creciente, la relación es directa y muy fuerte.
+
+Si los puntos están un poco más separados a la recta lineal decreciente, la relación es inversa y algo más débil.
+
+Si los puntos no siguen una tendencia lineal, hay que buscar otras herramientas distintas a RLS.
+
+
+#### Residuo 
+
+$y´ = 7 + 3x$
+
+En él, si x = 5, entonces yˆ = 22. yˆ es un estimador que podemos entender de la siguiente manera: dado un
+valor de x, el valor de y es, en promedio, yˆ. En otras palabras, yˆ corresponde al valor esperado de y para un
+determinado valor de x
+
+
+En la práctica, existe una diferencia entre el valor esperado yˆ y el valor observado
+de y. Esta diferencia se denomina **error** (no en el sentido de equivocación) o **residuo** y se denota e.
+
+$y = y´ + e$
+
+
+Otra forma de entender el residuo es como la distancia que separa a la observación de la recta. Si se encuentra sobre la recta e > 0, en caso contrario e < 0.
+
+**Los residuos sirven para evaluar qué tan bien se ajusta un modelo lineal, por lo que se realiza la gráfica de residuos, donde el eje x es la variable predictora y el eje y el residuo para cada observación.  **
+
+### Correlación
+
+Formalmente, podemos medir la fuerza de una relación lineal mediante la correlación.
+
+La correlación siempre toma un valor entre -1 y 1.
+
+Mientras más débil sea la relación entre dos variables, su
+valor será más cercano a 0. El signo de la correlación indica si la relación es directa (R > 0) o inversa (R < 0).
+
+**En R, podemos calcular la correlación entre dos variables usando la función cor(x, y), donde x es el predictor e y la respuesta.**
+
+**Adicionalmente, cuando x es una matriz de datos, la función cor(x) nos entrega una matriz de correlación, que contiene las correlaciones entre todos los pares de variables. **
+
+### Mínimos cuadrados
+Si bien existen diversos métodos para ajustar un modelo lineal, el más empleado es el de la línea de mínimos
+cuadrados, que minimiza la suma de los cuadrados de los residuos.
+
+**Condiciones** que se deben cumplir para aplicarlo:
+
+1. Los datos deben presentar una relación lineal.
+
+2. La distribución de los residuos debe ser cercana a la normal.
+
+3. La variabilidad de los puntos en torno a la línea de mínimos cuadrados debe ser aproximadamente
+constante.
+
+4. Las observaciones deben ser independientes entre sí. Esto significa que no se puede usar regresión lineal
+con series de tiempo (tema que va más allá de los alcances de este texto).
+
+Los gráficos de residuos reflejan cuando no se cumplen las condiciones anteriores. (no siguen comportamiento lineal)
+
+Cuando contamos con más de una variable para construir una regresión lineal simple (RLS), lo más adecuado
+es que escojamos como predictor aquella variable que tenga la **correlación más fuerte** con la variable de
+respuesta.
+
+Desde luego, R ofrece una función que permite ajustar la recta de mínimos cuadrados para un par de variables:
+lm(formula, data), donde:
+
+- formula: tiene la forma variable de respueta∼variable predictora.
+- data: matriz de datos.
+
+Cuando se cumplen las condiciones, en el gráfico de residuos: 
+
+1. Un gráfico en que los residuos se distribuyen aleatoriamente en torno a la línea de valor 0, sugiere que
+es razonable suponer que las variables presentan una relación lineal.
+
+2. Cuando los residuos forman una “banda horizontal´´ en torno a la línea de valor 0, sugiere una variabildad aproximadamente constante de los residuos.
+
+3. La ausencia de residuos que se alejen del patrón que forman los demás sugiere la ausencia de valores
+atípicos.
+
+
+```{r }
+# Ajusta la línea de mínimos cuadrados para la variable de respuesta rendimiento (mpg), con la variable peso (wt) como predictor, mediante el uso de lm().
+# library(ggpubr)
+
+# Cargar los datos.
+datos <- mtcars
+
+# Ajustar modelo con R.
+modelo <- lm(mpg ~ wt, data = datos)
+print(summary(modelo))
+
+# Graficar el modelo.
+p <- ggscatter(datos, x = "wt", y = "mpg", color = "blue", fill = "blue",
+               xlab = "Peso [lb x 1000]", ylab = "Rendimiento [millas/galón]")
+
+p <- p + geom_smooth(method = lm, se = FALSE, colour = "red")
+print(p)
+
+# Crear gráficos para evaluar el modelo.
+plot(modelo)
+
+# Ingresar algunas instancias artificiales.
+mpg <- c(23.714, 19.691, 19.242, 12.430, 10.090, 9.565, 18.171, 26.492, 7.054,
+         24.447, 15.683, 17.403, 13.465, 18.850, 29.493)
+
+wt <- c(2.973, 4.532, 2.332, 3.016, 4.220, 4.286, 2.580, 3.084, 3.816, 2.775,
+        3.251, 3.013, 4.951, 2.644, 2.218)
+
+nuevos <- data.frame(mpg, wt)
+
+# Usar el modelo para predecir el rendimiento de los nuevos  y ver los 
+# residuos resultantes.
+predicciones <- predict(modelo, nuevos)
+residuos <- nuevos$mpg - predicciones
+nuevos <- data.frame(nuevos, residuos)
+
+r <- ggscatter( nuevos, x = "wt", y = "residuos", color = "blue",
+                fill = "blue", xlab = "Peso [lb * 1000]", ylab = "Residuo")
+
+r <- r + geom_hline(yintercept = 0, colour = "red")
+print(r)
+```
+
+En R, la función predict(object, newdata) nos permite usar un modelo (en este caso, una RLS) para
+predecir una respuesta. Los argumentos de esta función son:
+
+- object: el modelo a emplear.
+
+- newdata: matriz de datos con las nuevas instancias para las que se desea efectuar la predicción, la cual debe tener todas las columnas presentes en la fórmula del modelo (para el ejemplo, mpg y wt).
+
+
+## Regresión lineal con predictor categórico
+
+Variable dicotómica (es decir, con solo dos niveles).
+
+Para usar una variable categórica con dos niveles, tenemos que convertirla a formato numérico, para lo cual
+creamos una nueva variable indicadora que toma los valores 0 y 1. Las
+funciones de R que ajustan modelos lo hacen automáticamente cuando encuentran predictores categóricos.
+
+```{r}
+# Crear un data frame con una variable dicotémica
+alumno <- 1:5
+
+sexo <- factor(c("F", "M", "F","F", "M"))
+datos <- data.frame(alumno, sexo)
+
+# Crear una variable indicadora para sexo, con valor 0
+# para hombres y 1, para muje.
+
+es_mujer <- rep(1, length (sexo))
+es_mujer[sexo == "M"] <- 0
+
+# Reemplazar la variable sexo por lav ariable indicadora
+datos <- cbind(datos, es_mujer)
+datos[["sexo"]] <- NULL
+```
+El conjunto de datos mtcars ya cuenta con un par de variables que cumplen con esta característica: la
+transmisión (am) y la forma del motor (vs). De estas dos variables, la forma del motor tiene una correlación
+más fuerte con el rendimiento, por lo que la usaremos como ejemplo para crear un modelo RLS. Al crear el
+modelo (script 12.3) obtenemos como resultado la recta representada en el gráfico superior de la figura 12.10,
+con los residuos del gráfico inferior en la misma figura. A su vez, la figura 12.11 muestra los valores obtenidos
+para los parámetros del modelo.
+
+Cuando usamos un predictor dicotómico siempre se cumple la condición de que los datos presentan una
+relación lineal. Sin embargo, debemos verificar que la distribución de los residuos de ambos grupos se asemeje
+a la normal y que tengan varianzas similares. El panel superior de la figura 12.10 muestra que, en efecto, las
+variabilidades de los residuos de ambos grupos son independientes y la figura 12.12 muestra que la distribución
+de los residuos se acerca a la normal para ambos tipos de transmisión, por lo que se verifican las condiciones.
+
+```{r}
+#library(ggpubr)
+
+# Cargar los datos.
+datos <- mtcars
+
+# Ajustar modelo con R.
+modelo <- lm(mpg ~ vs, data = datos)
+print(summary(modelo))
+
+# Graficar el modelo.
+p <- ggscatter(datos, x = "vs", y = "mpg", color = "blue", fill = "blue",
+               xlab = "Forma del motor", ylab = "Rendimiento [millas/galón]",
+               xticks.by = 1)
+
+p <- p + geom_smooth(method = lm, se = FALSE, colour = "red")
+print(p)
+
+# Crear gráficos para evaluar el modelo.
+plot(modelo)
+
+#Graficar residuos.
+residuos <- modelo$residuals
+datos <- cbind(datos, residuos)
+datos[["vs"]] <- factor(datos[["vs"]])
+
+r <- ggqqplot(datos, x = "residuos", facet.by = "vs", color = "vs", 
+              palette = c("blue", "red"))
+
+print(r)
+```
+
+### Evaluación modelo RLS
+Verificaciones importantes antes de hacer predicciones, pues puede ocurrir que la recta ajustada esté
+fuertemente influenciada por un pequeño grupo de valores atípicos o que no pueda generalizarse para otras
+muestras.
+
+#### Influencia valores atípicos
+Los valores atípicos influyen significativamente en el incumplimiento de
+las condiciones que debemos verificar para poder usar una regresión lineal. Sin embargo, no todos los valores
+atípicos son perjudiciales.
+
+Los valores atípicos que se alejan horizontalmente del centro de la nube principal de puntos pueden, potencialmente, tener una gran influencia en el ajuste de la línea de regresión. Este fenómeno se conoce como
+apalancamiento (leverage en inglés), pues dichos puntos parecen tirar de la línea hacia ellos. Cuando un
+valor atípico ejerce efectivamente esta influencia, decimos que es un punto influyente. Una forma de saber
+si un punto es o no influyente es determinar la línea de regresión sin considerar dicho punto y ver cuánto se
+aleja este último de la nueva línea. 
+
+#### Bondad de ajuste
+Coeficiente de determinación, que corresponde al cuadrado
+de la correlación, por lo que suele también denominarse R-cuadrado (R2).
+
+Valor varía entre 0 y 1, corresponde al porcentaje de la variabilidad de la respuesta que es explicado por el
+predictor.
+
+R2 = −0, 8682 = 0, 753
+
+En consecuencia, la recta de regresión lineal, construida con el peso del vehículo como predictor, explica
+75,3 % de la variabilidad en el rendimiento.
+
+#### Validación cruzada
+nos falta verificar si el modelo puede generalizarse. Una estrategia
+frecuente para esto es la validación cruzada,el conjunto de datos se separa en dos fragmentos:
+
+1. **Conjunto de entrenamiento: **  suele contener entre el 80 % y el 90 % de las observaciones (aunque es
+frecuente encontrar que solo contenga el 70 % de ellas), escogidas de manera aleatoria, y se emplea para
+ajustar la recta con el método de mínimos cuadrados.
+
+2. **Conjunto de prueba: ** contiene el 10 % a 30 % restante de las instancias, y se usa para evaluar el
+modelo con datos nuevos.
+
+La idea detrás de este método es evaluar cómo se comporta el modelo con datos que no ha visto previamente,
+en comparación al comportamiento con el conjunto de entrenamiento. Una buena métrica que podemos usar
+para esta tarea es el error cuadrático medio, o MSE por sus siglas en inglés, pues es lo que el método de
+mínimos cuadrados busca minimizar.
+
+```{r}
+# Cargar los datos.
+datos <- mtcars
+
+# Crear conjuntos de entrenamiento y prueba.
+set.seed(101)
+n <- nrow(datos)
+n_entrenamiento <- floor(0.7 * n)
+muestra <- sample.int(n = n, size = n_entrenamiento, replace = FALSE)
+entrenamiento <- datos[muestra, ]
+prueba  <- datos[-muestra, ]
+
+# Ajustar modelo con el conjunto de entrenamiento.
+modelo <- lm(mpg ~ wt, data = entrenamiento)
+print(summary(modelo))
+
+# Calcular error cuadrado promedio para el conjunto de entrenamiento.
+mse_entrenamiento <- mean(modelo$residuals ** 2)
+cat("MSE para el conjunto de entrenamiento:", mse_entrenamiento, "\n")
+
+# Hacer predicciones para el conjunto de prueba.
+predicciones <- predict(modelo, prueba)
+
+# Calcular error cuadrado promedio para el conjunto de prueba.
+error <- prueba[["mpg"]] - predicciones
+mse_prueba <- mean(error ** 2)
+cat("MSE para el conjunto de prueba:", mse_prueba)
+```
+
+#### Validación cruzada k-pliegues
+
+Una buena manera de mejorar la estimación del error cuadrático medio es obtener más observaciones, de
+acuerdo al ya conocido teorema del límite central. Para esto, se puede usar una nueva manera de remuestreo:
+la validación cruzada de k pliegues (en inglés k-fold cross validation).
+
+En R, podemos realizar este proceso de forma bastante sencilla gracias a la función train(formula, method= “lm”, trControl = trainControl(method = “cv”, number) del paquete caret, donde:
+
+- formula: fórmula que se emplea en las llamadas internas a lm().
+
+- number: cantidad de pliegues (k).
+
+```{r}
+#library(caret)
+
+# Cargar los datos.
+datos <- mtcars
+
+# Crear conjuntos de entrenamiento y prueba.
+set.seed(101)
+n <- nrow(datos)
+n_entrenamiento <- floor(0.7 * n)
+muestra <- sample.int(n = n, size = n_entrenamiento, replace = FALSE)
+entrenamiento <- datos[muestra, ]
+prueba  <- datos[-muestra, ]
+
+# Ajustar modelo usando validación cruzada de 5 pliegues.
+modelo <- train(mpg ~ wt, data = entrenamiento, method = "lm",
+                trControl = trainControl(method = "cv", number = 5))
+
+print(summary(modelo))
+
+# Hacer predicciones para el conjunto de entrenamiento.
+predicciones_entrenamiento <- predict(modelo, entrenamiento)
+
+# Calcular error cuadrado promedio para el conjunto de prueba.
+error_entrenamiento <- entrenamiento[["mpg"]] - predicciones_entrenamiento
+mse_entrenamiento <- mean(error_entrenamiento ** 2)
+cat("MSE para el conjunto de entrenamiento:", mse_entrenamiento, "\n")
+
+# Hacer predicciones para el conjunto de prueba.
+predicciones_prueba <- predict(modelo, prueba)
+
+# Calcular error cuadrado promedio para el conjunto de prueba.
+error_prueba <- prueba[["mpg"]] - predicciones_prueba
+mse_prueba <- mean(error_prueba ** 2)
+cat("MSE para el conjunto de prueba:", mse_prueba)
+```
+
+#### Validación cruzada dejando uno fuera
+
+Cuando la muestra disponible es pequeña, tema que reforzaremos en el capítulo siguiente, una buena alternativa es usar validación cruzada dejando uno fuera 
+
+En R, la llamada a train()
+es muy similar a la que hicimos para validación cruzada con k pliegues: solo cambia el argumento trControl,
+cuyo valor ahora debe ser trainControl(method = "LOOCV").
+
+## Inferencia para regresión lineal
+También podemos usar los modelos de RLS para hacer inferencia.
+
+El gerente de una empresa de desarrollo de software cree que, mientras más stakeholders
+tiene un proyecto, menos requisitos funcionales tiene el software a desarrollar.
+
+```{r}
+#library(ggpubr)
+
+# Crear los datos originales.
+requisitos <- c(11, 10, 12, 14, 8, 13, 18, 15, 20, 16, 21, 13, 10, 9, 21)
+stakeholders <- c(8, 8, 6, 6, 8, 7, 3, 1, 3, 4, 5, 4, 4, 9, 2)
+datos <- data.frame(requisitos, stakeholders)
+
+# Ajustar modelo.
+modelo <- lm(requisitos ~ stakeholders, data = datos)
+print(summary(modelo))
+
+# Graficar el modelo.
+p <- ggscatter(
+  datos, x = "stakeholders", y = "requisitos", color = "blue", fill = "blue",
+  xlab = "Stakeholders", ylab = "Requisitos funcionales")
+
+p <- p + geom_smooth(method = lm, se = FALSE, colour = "red")
+
+# Graficar los residuos.
+b_1 <- modelo$coefficients[2]
+b_0 <- modelo$coefficients[1]
+residuos <- datos[["requisitos"]] - (b_1 * datos[["stakeholders"]] + b_0)
+datos <- data.frame(datos, residuos)
+
+r <- ggscatter(datos, x = "stakeholders", y = "residuos", color = "blue",
+               fill = "blue", xlab = "Stakeholders", ylab = "Residuo")
+
+r <- r + geom_hline(yintercept = 0, colour = "red")
+
+g <- ggarrange(p, r, ncol = 2, nrow = 1)
+print(g)
+
+# Verificar normalidad de los residuos.
+cat("Prueba de normalidad para los residuos\n")
+print(shapiro.test(datos$residuos))
+```
+
+
+**Condiciones**
+Puesto que la correlación entre ambas variables es relativamente fuerte (R = −0, 706), podemos comprobar
+19
+que los datos siguen una tendencia lineal. Al aplicar la prueba de normalidad de Shapiro-Wilk a los residuos,
+concluimos que estos siguen una distribución cercana a la normal (p = 0, 924). Podemos apreciar en la figura
+12.16 que la variabilidad de los residuos es relativamente constante. Por otra parte, las observaciones son
+independientes entre sí, pues han sido seleccionadas de manera aleatoria y corresponden a menos del 10 % de
+la población. En consecuencia, se verifica el cumplimiento de todas las condiciones necesarias para emplear
+un modelo de RLS ajustado mediante mínimos cuadrados.
+
+
+El gerente, con la intención de evaluar a una abatida estudiante en práctica que aún no ha cursado su
+asignatura de estadística, le ha entregado los resultados obtenidos y le ha preguntado si los datos sustentan
+su teoría de que la cantidad de requisitos funcionales disminuye a medida que la cantidad de stakeholders
+aumenta. Tras muchas horas buscando información, la estudiante ha formulado las siguientes hipótesis:
+H0: β1 = 0. La pendiente del modelo es igual a 0 o, lo que es lo mismo, la cantidad de stakeholders no
+explica en absoluto la cantidad de requisitos funcionales.
+HA: β1 < 0.
+Puesto que el valor p entregado por R corresponde a una prueba bilateral (fijarse en el valor absoluto que
+incluye el título de la columna: Pr(>|t|)), en el caso unilateral se debe considerar la mitad de este valor. En
+consecuencia, el gerente concluye, con 99 % de confianza (p < 0.002), que en efecto la cantidad de requisitos
+funcionales disminuye a medida que la cantidad de stakeholders aumenta.

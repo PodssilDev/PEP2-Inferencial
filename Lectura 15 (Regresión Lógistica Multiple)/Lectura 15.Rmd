@@ -1,0 +1,339 @@
+---
+title: "Lectura 15"
+output:
+  prettydoc::html_pretty:
+    theme: architect 
+    highlight: github
+    math: katex
+---
+
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(pROC)
+library(caret)
+library(car)
+```
+
+## Regresión logística RLG
+La regresión logística es un modelo lineal generalizado, que admite una variable de respuesta cuyos
+residuos sigan una distribución diferente a la normal.
+
+La regresión logística relaciona la distribución de la variable de respuesta con un modelo lineal usando como
+función de enlace la función logística estándar, también conocida como logit().
+
+Adecuada para predecir una respuesta dicotómica, pues puede ser asociada
+a una distribución binomial.
+
+### Evaluación clasificador
+ Para ello, el primer paso consiste en construir una **tabla de contingencia**
+(también llamada **matriz de confusión**) para las respuestas predichas y observadas.
+
+Las cuatro celdas de la matriz de confusión contienen:
+
+- Verdaderos positivos (VP): cantidad de instancias correctamente clasificadas como pertenecientes a
+la clase positiva.
+
+- Falsos positivos (FP): cantidad de instancias erróneamente clasificadas como pertenecientes a la clase
+positiva.
+
+- Falsos negativos (FN ): cantidad de instancias erróneamente clasificadas como pertenecientes a la
+clase negativa.
+
+- Verdaderos negativos (VN ): cantidad de instancias correctamente clasificadas como pertenecientes
+a la clase negativa.
+
+En R, podemos ajustar un modelo de regresión logística mediante la función glm(formula, family =
+binomial(link = "logit"), data), donde:
+
+- formula tiene la forma variable de respuesta∼variable predictora.
+
+- data: matriz de datos.
+
+Puesto que existen otros modelos generalizados de regresión lineal, el argumento family = binomial(link
+= "logit") indica que asumiremos una distribución binomial para la variable de respuesta y que usaremos
+la función logística.
+
+Las líneas 11–19 del script 14.1 ilustran el uso de la función glm() para ajustar un modelo de regresión logística
+que prediga el tipo de transmisión de un automóvil (0 = automática, 1 = manual) a partir de su peso
+
+ La función roc(response, predictor) del paquete pROC, donde los argumentos
+corresponden, respectivamente, a las respuestas observadas y las respuestas predichas, nos permite obtener
+la **curva ROC** de la figura.
+
+la función confusionMatrix(data, reference) del paquete caret, donde data
+corresponde a la respuesta predicha y reference a la observada, genera la **matriz de confusión** y obtiene
+las medidas de evaluación descritas anteriormente.
+
+```{r }
+#library(pROC)
+#library(caret)
+
+set.seed(1313)
+
+# Cargar los datos.
+datos <- mtcars
+datos$am <- factor(datos$am)
+
+# Separar conjuntos de entrenamiento y prueba.
+n <- nrow(datos)
+n_entrenamiento <- floor(0.8 * n)
+muestra <- sample.int(n = n, size = n_entrenamiento, replace = FALSE)
+entrenamiento <- datos[muestra, ]
+prueba  <- datos[-muestra, ]
+
+# Ajustar modelo.
+modelo <- glm(am ~ wt, family = binomial(link = "logit"), data = entrenamiento)
+print(summary(modelo))
+
+# Evaluar el modelo con el conjunto de entrenamiento.
+cat("Evaluación del modelo a partir del conjunto de entrenamiento:\n")
+probs_e <- predict(modelo, entrenamiento, type = "response")
+
+umbral <- 0.5
+preds_e <- sapply(probs_e, function(p) ifelse(p >= umbral, "1", "0"))
+preds_e <- factor(preds_e, levels = levels(datos[["am"]]))
+
+ROC_e <- roc(entrenamiento[["am"]], probs_e)
+plot(ROC_e)
+
+matriz_e <- confusionMatrix(preds_e, entrenamiento[["am"]])
+print(matriz_e)
+
+# Evaluar el modelo con el conjunto de prueba.
+cat("Evaluación del modelo a partir del conjunto de prueba:\n")
+probs_p <- predict(modelo, prueba, type = "response")
+
+preds_p <- sapply(probs_p, function(p) ifelse(p >= umbral, "1", "0"))
+preds_p <- factor(preds_p, levels = levels(datos[["am"]]))
+
+ROC_p <- roc(prueba[["am"]], probs_p)
+plot(ROC_p)
+
+matriz_p <- confusionMatrix(preds_p, prueba[["am"]])
+print(matriz_p)
+```
+
+## Condiciones
+Desde luego, no basta con evaluar el desempeño del clasificador, sino que también necesitamos verificar el
+cumplimiento de ciertas condiciones para que un modelo de regresión logística sea válido:
+
+1. Debe existir una relación lineal entre los predictores y la respuesta transformada.
+
+2. Los residuos deben ser independientes entre sí.
+
+Además de las condiciones anteriores, existen otras situaciones en que puede ocurrir que el método de optimización no converja:
+
+1. Multicolinealidad entre los predictores, que en este caso se aborda del mismo modo que para RLM (por
+ejemplo, mediante el factor de inflación de la varianza o la tolerancia).
+
+2. Información incompleta, que se produce cuando no contamos con observaciones suficientes para todas
+las posibles combinaciones de predictores.
+
+3. Separación perfecta, que ocurre cuando no hay superposición entre las clases, es decir, ¡cuando los
+predictores separan ambas clases completamente!
+
+
+## Generalización modelo
+La validación cruzada como herramienta para mejorar la estimación del
+error, la cual podemos usar de manera análoga para regresión logística.
+
+ Notemos que la llamada
+a la función train() también solicita que “se guarden” los valores predichos, lo que nos permite estimar el
+rendimiento promedio del modelo como si se repitiera el script 14.2, seleccionando aleatoriamente un conjunto
+de entrenamiento y otro de prueba, cinco veces.
+
+Debemos fijarnos en que el modelo obtenido es idéntico al anterior (por lo que no se muestra aquí), ya
+que la función train() reentrena el modelo del pliegue que obtuvo mejor rendimiento con todos los datos
+disponibles. En el caso de la regresión logística (como con la regresión lineal), los pliegues solo se diferencian
+en los datos que utilizan, por lo que siempre se llega al mismo modelo. Esto no sería así si la validación
+cruzada se usara, por ejemplo, para seleccionar las variables predictoras a incluir en el modelo.
+
+```{r}
+#library(caret)
+
+set.seed(1313)
+
+# Cargar los datos.
+datos <- mtcars
+datos$am <- factor(datos$am)
+
+# Ajustar modelo usando validación cruzada de 5 pliegues.
+modelo <- train(am ~ wt, data = entrenamiento, method = "glm",
+                family = binomial(link = "logit"),
+                trControl = trainControl(method = "cv", number = 5, 
+                                         savePredictions = TRUE))
+
+print(summary(modelo))
+
+# Evaluar el modelo 
+cat("Evaluación del modelo basada en validación cruzada:\n")
+matriz <- confusionMatrix(modelo$pred$pred, modelo$pred$obs)
+print(matriz)
+```
+
+## Selección predictores
+Cuando tenemos múltiples predictores potenciales, debemos decidir cuáles de ellos incorporar en el modelo.
+Una vez más, y tal como detallamos en el capítulo 13, el ideal es usar la regresión jerárquica para escoger los
+predictores de acuerdo a evidencia disponible en la literatura. Sin embargo, al explorar los datos, podemos
+emplear los demás métodos ya descritos: selección hacia adelante, eliminación hacia atrás, regresión escalonada
+o todos los subconjuntos. Se usan para ello las mismas funciones de R descritas en el capítulo 13.
+
+## Comparación modelos
+Al igual que con los modelos de regresión lineal, podemos comparar modelos de regresión logística mediante
+la función anova(), aunque ahora la prueba F resulta inapropiada. En cambio, una prueba muy utilizada en
+este caso es el Likelihood Ratio Test (LRT), el cual compara qué tanto más “probables” son los datos con un
+modelo que con el otro. (ej en ultimo script)
+
+## REGRESIÓN LOGÍSTICA EN R CON SELECCIÓN DE PREDICTORES
+Por regla general, se recomienda eliminar la variable con mayor VIF.
+
+No entendí esto
+
+```{r}
+#library(car)
+
+set.seed(1313)
+
+# Cargar los datos.
+datos <- mtcars
+am <- factor(datos$am)
+datos$am <- NULL
+datos <- cbind(am, datos)
+
+# Separar conjuntos de entrenamiento y prueba.
+n <- nrow(datos)
+n_entrenamiento <- floor(0.8 * n)
+muestra <- sample.int(n = n, size = n_entrenamiento, replace = FALSE)
+entrenamiento <- datos[muestra, ]
+prueba  <- datos[-muestra, ]
+
+# Ajustar modelo nulo.
+nulo <- glm(am ~ 1, family = binomial(link = "logit"), data = entrenamiento)
+
+# Ajustar modelo completo.
+cat("\n\n")
+completo <- glm(am ~ ., family = binomial(link = "logit"),
+                data = entrenamiento)
+
+# Ajustar modelo con regresión escalonada.
+cat("Modelo con regresión escalonada\n")
+cat("--------------------------------------\n")
+mejor <- step(nulo, scope = list(lower = nulo, upper = completo),
+              direction = "both", trace = 0)
+
+print(summary(mejor))
+
+# Verificación de multicolinealidad.
+cat("Verificación de colinealidad\n")
+cat("--------------------------------------\n")
+cat("\nVIF:\n")
+vifs <- vif(mejor)
+print(vifs)
+cat("\nPromedio VIF: ")
+print(mean(vifs))
+
+# Ajustar modelo con el peso como predictor.
+cat("Modelo con el peso como predictor\n")
+cat("--------------------------------------\n")
+modelo_peso <- glm(am ~ wt, family = binomial(link = "logit"),
+                   data = entrenamiento)
+
+print(summary(modelo_peso))
+
+# Ajustar modelo con la potencia como predictor.
+cat("Modelo con la potencia como predictor\n")
+cat("--------------------------------------\n")
+modelo_potencia <- glm(am ~ hp, family = binomial(link = "logit"),
+                       data = entrenamiento)
+
+print(summary(modelo_potencia))
+
+# Comparar los modelos con el peso y la potencia como predictores.
+cat("\n\n")
+cat("Likelihood Ratio Test para los modelos\n")
+cat("--------------------------------------\n")
+print(anova(modelo_peso, modelo_potencia, test = "LRT"))
+
+# A modo de ejercicio, comparar el modelo obtenido mediante
+# regresión escalonada con el que solo tiene el peso como predictor.
+cat("\n\n")
+cat("Likelihood Ratio Test para los modelos\n")
+cat("--------------------------------------\n")
+print(anova(modelo_peso, mejor, test = "LRT"))
+
+# Independencia de los residuos.
+cat("Verificación de independencia de los residuos\n")
+cat("--------------------------------------\n")
+print(durbinWatsonTest(modelo_peso, max.lag = 5))
+
+# Detectar posibles valores atípicos.
+cat("Identificación de posibles valores atípicos\n")
+cat("--------------------------------------\n")
+plot(mejor)
+
+# Obtener los residuos y las estadísticas.
+output <- data.frame(predicted.probabilities = fitted(modelo_peso))
+output[["standardized.residuals"]] <- rstandard(modelo_peso)
+output[["studentized.residuals"]] <- rstudent(modelo_peso)
+output[["cooks.distance"]] <- cooks.distance(modelo_peso)
+output[["dfbeta"]] <- dfbeta(modelo_peso)
+output[["dffit"]] <- dffits(modelo_peso)
+output[["leverage"]] <- hatvalues(modelo_peso)
+
+# Evaluar residuos estandarizados que escapen a la normalidad.
+# 95% de los residuos estandarizados deberían estar entre
+# -1.96 y 1.96, y 99% entre -2.58 y 2.58.
+sospechosos1 <- which(abs(output[["standardized.residuals"]]) > 1.96)
+sospechosos1 <- sort(sospechosos1)
+cat("\n\n")
+cat("Residuos estandarizados fuera del 95% esperado\n")
+cat("------------------------------------------------\n")
+print(rownames(entrenamiento[sospechosos1, ]))
+
+# Revisar casos con distancia de Cook mayor a uno.
+sospechosos2 <- which(output[["cooks.distance"]] > 1)
+sospechosos2 <- sort(sospechosos2)
+cat("\n\n")
+cat("Residuales con una distancia de Cook alta\n")
+cat("-----------------------------------------\n")
+print(rownames(entrenamiento[sospechosos2, ]))
+
+# Revisar casos cuyo apalancamiento sea más del doble
+# o triple del apalancamiento promedio.
+leverage.promedio <- ncol(entrenamiento) / nrow(datos)
+sospechosos3 <- which(output[["leverage"]] > leverage.promedio)
+sospechosos3 <- sort(sospechosos3)
+cat("\n\n")
+cat("Residuales con levarage fuera de rango (> ")
+cat(round(leverage.promedio, 3), ")", "\n", sep = "")
+cat("--------------------------------------\n")
+print(rownames(entrenamiento[sospechosos3, ]))
+
+# Revisar casos con DFBeta >= 1.
+sospechosos4 <- which(apply(output[["dfbeta"]] >= 1, 1, any))
+sospechosos4 <- sort(sospechosos4)
+names(sospechosos4) <- NULL
+cat("\n\n")
+cat("Residuales con DFBeta sobre 1\n")
+cat("-----------------------------\n")
+print(rownames(entrenamiento[sospechosos4, ]))
+
+# Detalle de las observaciones posiblemente atípicas.
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4)
+sospechosos <- sort(unique(sospechosos))
+cat("\n\n")
+cat("Casos sospechosos\n")
+cat("-----------------\n")
+print(entrenamiento[sospechosos, ])
+cat("\n\n")
+print(output[sospechosos, ])
+```
+
