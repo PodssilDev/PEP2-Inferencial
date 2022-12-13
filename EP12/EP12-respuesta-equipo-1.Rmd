@@ -1,0 +1,300 @@
+---
+title: "EP12"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+# Carga de paquetes
+```{r message=FALSE}
+library("tidyverse")
+library("ggpubr")
+library("car")
+library("pROC")
+```
+
+# Carga de Datos
+```{r}
+datos <- read.csv2("EP11 Datos.csv", fileEncoding = "UTF-8") # Se carga el archivo de datos EP11 Datos.csv
+IMC <- datos$Weight / ((datos$Height / 100)**2) # Se obtiene el IMC
+datos <- cbind(datos, IMC) # Se agrega el IMC a los datos
+EN <- datos$IMC >= 25 # Se crea una variable booleana EN
+datos <- cbind(datos, EN) # Se agrega el EN a los datos
+```
+
+**1. Definir la semilla a utilizar, que corresponde a los últimos cuatro dígitos del RUN (sin considerar el dígito verificador) del integrante de mayor edad del equipo.**
+
+**2. Seleccionar una muestra de 90 mujeres (si la semilla es un número par) o 90 hombres (si la semilla es impar), asegurando que la mitad tenga estado nutricional “sobrepeso” y la otra mitad “no sobrepeso” en cada caso. Dividir esta muestra en dos conjuntos: los datos de 60 personas (30 con EN “sobrepeso”) para utilizar en la construcción de los modelos y 30 personas (15 con EN “sobrepeso”) para poder evaluarlos.**
+
+```{r}
+# Se carga la semilla considerando el rut del integrante con menor edad
+set.seed(5678)
+# Se filtran los datos para solo tener datos de mujeres
+datos_mujeres <- datos %>% filter(Gender == 0)
+# Se obtiene una muestra de 50 mujeres aleatorias
+datos_mujeres_sobrepeso <- datos_mujeres %>% filter(EN)
+
+datos_mujeres_bajopeso <- datos_mujeres %>% filter(!EN)
+datos_mujeres_bajopeso <- sample_n(datos_mujeres_bajopeso, 45)
+# Se crea el primer conjunto de datos
+conjunto1_sobrepeso <- sample_n(datos_mujeres_sobrepeso, 30)
+conjunto1_bajopeso <- sample_n(datos_mujeres_bajopeso, 30)
+muestra_1 <- rbind(conjunto1_sobrepeso, conjunto1_bajopeso) # Se obtiene la muestra definitiva
+# Se crea el segundo conjunto de datos
+conjunto2_sobrepeso <- sample_n(datos_mujeres_sobrepeso, 15)
+conjunto2_bajopeso <- sample_n(datos_mujeres_bajopeso, 15)
+muestra_2 <- rbind(conjunto2_sobrepeso, conjunto2_bajopeso) # Se obtiene la muestra definitiva
+
+en_1 <- muestra_1["EN"] # Se guarda EN
+muestra_1["IMC"] <- NULL # Se anulan las variables no usadas
+muestra_1["Weight"] <- NULL
+muestra_1["Height"] <- NULL
+muestra_1["EN"] <- NULL
+muestra_1["Gender"] <- NULL
+columnas_muestra <- colnames(muestra_1)
+
+# Se repite el proceso para los datos de prueba
+en_2 <- muestra_2["EN"] # Se guarda EN
+muestra_2["IMC"] <- NULL # Se anulan las variables no usadas
+muestra_2["Weight"] <- NULL
+muestra_2["Height"] <- NULL
+muestra_2["EN"] <- NULL
+muestra_2["Gender"] <- NULL
+columnas_muestra <- colnames(muestra_2)
+# En total nos quedamos con 90
+# Muestra 1 tiene 30 y 30 (60)
+# Muestra 2 tiene 15 15 (30)
+```
+
+**3. Recordar las ocho posibles variables predictoras seleccionadas de forma aleatoria en el ejercicio anterior(EP11).**
+```{r}
+predictores_random <- c("Calf.Maximum.Girth", "Chest.depth", "Wrist.Minimum.Girth", "Shoulder.Girth", "Waist.Girth", "Knee.Girth", "Ankles.diameter", "Bicep.Girth")
+```
+
+En el ejercicio anterior, las variables predictoras seleccionadas de forma aleatoria eran:
+
+* Calf.Maximum.Girth
+* Chest.depth
+* Wrist.Minimum.Girth
+* Shoulder.Girth
+* Waist.Girth
+* Knee.Girth
+* Ankles.diameter
+* Bicep.Girth
+
+**4. Seleccionar, de las otras variables, una que el equipo considere que podría ser útil para predecir la clase EN, justificando bien esta selección.**
+
+```{r}
+# Se obtienen los datos sin considerar las variables seleccionadas en el punto 3
+variables_restantes <- datos_mujeres %>% select(!predictores_random)
+# Se imprimen los nombres de las variables de los datos anteriores
+cat("Variables restantes")
+print(colnames(variables_restantes))
+# Se calcula la correlación entre los datos restantes y el peso
+correlacion <- cor(variables_restantes, y = variables_restantes$EN)
+correlacion
+# Se crea un dataframe con las variables restantes y el peso
+datos_rls <- data.frame(variables_restantes, variables_restantes$EN)
+```
+Considerando las variables restantes, la variables con máxima correleación son **Hip.Girth** y **Thigh.Girth**, por lo tanto como se tratan de mujeres, seleccionamos la variable **Hip.Girth**, la cual, de acuerdo al diccionario de datos, corresponde a: *Grosor a la altura de las caderas*.
+
+**5. Usando el entorno R y paquetes estándares1, construir un modelo de regresión logística con el predictor seleccionado en el paso anterior y utilizando de la muestra obtenida.**
+```{r}
+# Se agrega la columna EN a la muestra obtenida.
+muestra_1 <- cbind(muestra_1, en_1)
+modelo <- glm(EN ~ Hip.Girth, family = binomial(link = "logit"),data = muestra_1)
+print(summary(modelo))
+
+# Se grafica el modelo.
+g <- ggscatter(muestra_1, x = "Hip.Girth", y = "EN", color = "blue",
+               xlab = "Grosor a la altura de las caderas", ylab = "Estado Nutricional")
+print(g)
+```
+
+**6. Usando herramientas estándares1 para la exploración de modelos del entorno R, buscar entre dos y cinco predictores de entre las variables seleccionadas al azar, recordadas en el punto 3, para agregar al modelo obtenido en el paso 5.**
+```{r}
+hip_1 <- muestra_1["Hip.Girth"] # Se guarda Hip.Girth
+muestra_1.1 <- rbind(conjunto1_sobrepeso, conjunto1_bajopeso)
+muestra_1.1 <- muestra_1.1 %>% select(predictores_random)
+muestra_1.1 <- cbind(muestra_1.1, en_1)
+muestra_1.1 <- cbind(muestra_1.1, hip_1)
+# Se ajusta el modelo acabado
+modelo_total <- glm(EN ~ ., family = binomial(link = "logit"), data = muestra_1.1)
+# Se utiliza step para ajustar el modelo con corrección hacia atrás (Backward)
+modelo_final <- step(object = modelo_total, scope = list(lower = modelo),
+                  direction = "backward",
+                  trace = 0)
+print(summary(modelo_final))
+```
+#### Análisis
+**AIC: 31.126**
+
+**7. Evaluar la confiabilidad de los modelos (i.e. que tengan un buen nivel de ajuste y son generalizables) y “arreglarlos” en caso de que tengan algún problema.**
+
+#### Nivel de confianza
+Considerando que se deben evaluar dos modelos con bastante cuidado, vamos a utilizar un nivel de confianza del 99% (alfa = 0.01).
+
+```{r}
+alfa <- 0.01
+print(alfa)
+```
+
+#### Comprobación y verificación de condiciones
+**1. Verificar si Existe una relación entre Hip.Girth y la variable de respuesta EN.**
+```{r}
+correlaciones <- round(cor(x = muestra_1, method = "pearson"), 3)
+correlaciones
+```
+
+#### Análisis
+La mayor correlación corresponde a la variable **Hip.Girth**. La correlación obtenida corresponde a **0.787**, lo que significa una relación lineal fuerte entre la variable predictora(Hip.Girth) y la variable de respuesta(EN).
+
+**2. Los residuos deben ser independientes.**
+```{r}
+print(durbinWatsonTest(modelo))
+```
+#### Análisis
+Como el p-value obtenido de 0.018 es mayor a 0.01, podemos concluir que los residuos son independientes.
+
+**3. Número de observaciones.**
+Respecto a la cantidad de informaciones, como se tienen más de 15, no hay problema con esta condición.
+
+**4. Sin separación perfecta.**
+Por último, se cumple la cuarta condición, ya que no se presentan Warnings a la hora de crear el modelo.
+
+#### Graficando para ver valores atípicos
+Para identificar valores atipicos, podemos utilizar plot() para obtener distintas gráficas relacionadas con el modelo.
+```{r}
+plot(modelo)
+```
+
+El gráfico 1 (residuals vs fitted) muestra 2 casos en los que lo residuos están más alejado de los demás, correspondientes a las observaciones 30 y 31. En el gráfico 2 (Q-Q) se observa que dichas observaciones en los extremos se alejan un poco. Finalmente, mirando la gráfica (residuals vs leverage), se puede ver que no existe un apalancamiento considerable, por lo que el modelo parece estar bien ajustado.
+
+### Comprobación y verificación de condiciones para el segundo modelo RlogM
+
+**1. Los datos obtenidos deben presentar una relación lineal.**
+
+#### Correlación de variables
+```{r}
+muestra_1.1 <- rbind(conjunto2_sobrepeso, conjunto2_bajopeso)
+correlaciones_2 <- round(cor(x = muestra_1.1, method = "pearson"), 3)
+```
+
+#### Análisis
+Como observamos en el gráfico existe una correlación entre la variable EM y las demás variables escogidas, sin embargo el predictor **Age** tiene una correlación de **-0.233**, entonces se procede a eliminar del modelo
+```{r}
+modelo_final <- update(modelo_final, . ~ . - Age) # Se utiliza update para quitar Age del modelo final
+```
+
+##### El modelo final con los predictores
+* Hip.Girth
+* Calf.Maximum.Girth
+* Waist.Girth
+* Knee.Girth
+
+**2. Los residuos deben ser independientes.**
+```{r}
+print(durbinWatsonTest(modelo_final))
+```
+
+#### Análisis
+Con un p-value de 0.028 y un alfa de 0.01 se concluye que los residuos con independientes.
+
+**3. Número de observaciones.**
+Tenemos 60 observaciones, por lo tanto, se cumple el mínimo de observaciones por predictor > 15.
+
+**4. Sin separación perfecta.**
+El modelo múltiple no retorna ningún warning.
+
+**5. No existe multicolinealidad.**
+```{r}
+vifs <- vif(modelo_final)
+cat("\nVerificar la multicolinealidad:\n")
+cat("VIF's:")
+print(vifs)
+cat("Tolerancias:")
+print(1 / vifs)
+cat("VIF medio:", mean(vifs))
+```
+
+#### Análisis
+##### VIF
+Todos los factores de inflación de varianza, todos cumplen con VIF < 4, además, todos superan el valor de 0.4.
+
+##### VIF Medio
+Sin embargo el VIF medio tiene un valor de 2.583325, muy alejado a 1.
+
+Finalmente se cumplen todas las condiciones menos la **Multicoleanidad**, sin embargo, se considera emplear un modelo de RLogM. Entonces el modelo es generalizado.
+
+```{r}
+print(summary(modelo_final))
+```
+
+#### Análisis
+**AIC: 17.967**
+
+#### Graficando para ver valores atípicos
+Para identificar valores atípicos, podemos utilizar plot() para obtener distintas gráficas relacionadas con el modelo.
+```{r}
+plot(modelo_final)
+```
+
+#### Análisis Gráfico
+***[Gráfico 1] Residuals vs Fitted. Se muestra 3 posibles instancias cuyo residuo está algo más alejado de las  demás (17, 27, 8), además de estar algo más alejados de la Recta Q-Q [Gráfico 2]. Después Residuals vs Leverage [Gráfico 4], se puede observar que las instancias ejercen un ligero apalancamiento, por lo que el modelo está bien ajustado.***
+
+**8. Usando código estándar1, evaluar el poder predictivo de los modelos con los datos de las 40 personas que no se incluyeron en su construcción en términos de sensibilidad y especificidad.**
+
+Vamos a utilizar los datos de las 30 personas que no se utilizaron para la construcción del modelo (Recordar que se utilizan 30 ya que los datos no alcanzan para 40). Se recrea el modelo RLogS con los datos de prueba.
+```{r}
+# Se una la columna de EN a los datos de las 30 personas
+muestra_2 <- cbind(muestra_2, en_2)
+# Se crea el modelo RlogS con los datos de prueba
+modelo_prueba_rlogs <- glm(EN ~ Hip.Girth, family = binomial(link = "logit"), data = muestra_2)
+print(summary(modelo_prueba_rlogs))
+```
+
+Se repite el proceso para RLogM:
+```{r}
+hip_2 <- muestra_2["Hip.Girth"] # Se guarda Hip.Girth
+muestra_2.2 <- rbind(conjunto2_sobrepeso, conjunto2_bajopeso)
+muestra_2.2 <- muestra_2.2 %>% select(predictores_random)
+muestra_2.2 <- cbind(muestra_2.2, en_2)
+muestra_2.2 <- cbind(muestra_2.2, hip_2)
+# Se crea el modelo de RLogM utilizando los predictores mencionados anteriormente
+modelo_prueba_rlogm <- glm(EN ~ Waist.Girth + Calf.Maximum.Girth + Knee.Girth + Hip.Girth, family = binomial(link = "logit"), data = muestra_2.2)
+print(summary(modelo_prueba_rlogm))
+```
+
+Ahora, se debe evaluar el poder predictivo de los modelos. Para ello, vamos a obtener las curvas ROC de cada modelo.
+
+Se obtiene la curva ROC de RLogS.
+```{r}
+# Se obtienen las predicciones
+preds_rlogs <- predict(modelo_prueba_rlogs, muestra_2, type = "response")
+# Se obtiene la curva ROC
+ROC_rlogs <- roc(muestra_2[["EN"]], preds_rlogs)
+plot(ROC_rlogs)
+```
+
+Podemos observar que la curva se aleja de la diagonal, por lo que se puede decir que se tiene un buen modelo. Ahora, se debe repetir el proceso para RLogM.
+
+Se obtiene la curva ROC de RLogM
+```{r}
+# Se obtienen las predicciones
+preds_rlogm <- predict(modelo_prueba_rlogm, muestra_2.2, type = "response")
+# Se obtiene la curva ROC
+ROC_rlogm <- roc(muestra_2.2[["EN"]], preds_rlogm)
+plot(ROC_rlogm)
+```
+
+Nuevamente, la curva ROC se aleja de la diagonal, por lo que también se tiene un buen modelo.
+
+Si comparamos ambas curvas, se puede observar que la curva ROC de RLogM logra estar alejada de la diagonal mucho más que la curva ROC de RLogS, por lo tanto, podemos decir que se trata de un mejor modelo en términos de sensibilidad y especifidad.
+
+Por último, se puede aplicar la prueba de Likelihood Ratio Test para comparar ambos modelos.
+```{r}
+# Se utiliza la prueba LRT para comparar los modelos
+comparacion_modelos <- anova(modelo_prueba_rlogs, modelo_prueba_rlogm, test = "LRT")
+print(comparacion_modelos)
+```
+
+De lo anterior, se obtiene un p-valor de 0.18, mayor al alfa establecido. Por lo tanto, se puede concluir que el modelo RLogS es mejor comparado con el modelo RLogM.

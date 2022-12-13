@@ -1,0 +1,110 @@
+---
+title: "EP13"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Carga de paquetes
+```{r message=FALSE}
+library("tidyverse")
+library("ggpubr")
+library("car")
+library("pROC")
+library("caret")
+library("leaps")
+```
+
+# Carga de Datos
+```{r}
+datos <- read.csv2("EP11 Datos.csv", fileEncoding = "UTF-8") # Se carga el archivo de datos EP11 Datos.csv
+IMC <- datos$Weight / ((datos$Height / 100)**2) # Se obtiene el IMC
+datos <- cbind(datos, IMC) # Se agrega el IMC a los datos
+EN <- datos$IMC >= 25 # Se crea una variable booleana EN
+datos <- cbind(datos, EN) # Se agrega el EN a los datos
+```
+
+**1. Definir la semilla a utilizar, que corresponde a los primeros cinco dígitos del RUN del integrante de mayor edad del equipo.**
+
+**2.Seleccionar una muestra de 100 personas, asegurando que la mitad tenga estado nutricional “sobrepeso” y la otra mitad “no sobrepeso”.**
+
+```{r}
+set.seed(5678)
+datos_sobrepeso <- datos %>% filter(EN)
+datos_bajopeso <- datos %>% filter(!EN)
+muestra_sobrepeso <- sample_n(datos_sobrepeso, 50)
+muestra_bajopeso <- sample_n(datos_bajopeso, 50)
+# Eliminación de variables EN e IMC para la búsqueda exhaustiva de predictores
+#muestra_bajopeso$IMC <- NULL
+#muestra_bajopeso$EN <- NULL
+#muestra_sobrepeso$IMC <- NULL
+#muestra_sobrepeso$EN <- NULL
+# Junta de muestras
+muestra_final <- rbind(muestra_bajopeso,  muestra_sobrepeso)
+
+```
+
+**3. Usando las herramientas del paquete leaps, realizar una búsqueda exhaustiva para seleccionar entre dos y ocho predictores que ayuden a estimar la variable Peso (Weight), obviamente sin considerar las nuevas variables IMC ni EN, y luego utilizar las funciones del paquete caret para construir un modelo de regresión lineal múltiple con los predictores escogidos y evaluarlo usando bootstrapping.**
+
+```{r}
+predictores = regsubsets(Weight~.,
+                        muestra_final,
+                        nbest=1,
+                        nvmax=8,
+                        method="exhaustive")
+print(plot(predictores))
+```
+
+-> Elbows Diameter
+-> Chest Girth
+-> Waist Girth
+-> Hip Girth
+-> Bicep Girth
+-> Forearm Girth
+
+```{r}
+fit1 <- train(Weight ~ Elbows.diameter + Forearm.Girth + Chest.Girth + Waist.Girth + Bicep.Girth + Height + Calf.Maximum.Girth, data = muestra_final, method = "lm")
+fit1
+```
+
+**4. Haciendo un poco de investigación sobre el paquete caret, en particular cómo hacer Recursive Feature Elimination (RFE), construir un modelo de regresión lineal múltiple para predecir la variable IMC que incluya entre 10 y 20 predictores, seleccionando el conjunto de variables que maximice R2 y que use cinco repeticiones de validación cruzada de cinco pliegues para evitar el sobreajuste (obviamente no se debe considerar las variables Peso, Estatura ni estado nutricional –Weight, Height, EN respectivamente).**
+```{r}
+muestra_final <- rbind(muestra_bajopeso,  muestra_sobrepeso)
+datos.imc <- muestra_final %>% select(-c(Weight, Height, EN))
+IMC <- muestra_final[["IMC"]]
+datos.imc[["IMC"]] <- NULL
+datos.imc[["Weight"]] <- NULL
+datos.imc[["Height"]] <- NULL
+datos.imc[["EN"]] <- NULL
+
+control <- rfeControl(functions = lmFuncs, method="repeatedcv",
+                      number=10, repeats=10, verbose = FALSE)
+
+modelo.imc <- rfe(datos.imc, IMC, rfeControl = control, sizes = 10:20,
+                  metric = "Rsquared")
+
+print(modelo.imc)
+print(modelo.imc[["optVariables"]])
+print(ggplot(modelo.imc))
+```
+
+**5. Usando RFE, construir un modelo de regresión logística múltiple para la variable EN que incluya el conjunto, de entre dos y seis, predictores que entregue la mejor curva ROC y que utilice validación cruzada dejando uno fuera para evitar el sobreajuste (obviamente no se debe considerar las variables Peso, Estatura –Weight y Height respectivamente– ni IMC).**
+
+```{r}
+datos.imc2 <- muestra_final %>% select(-c(Weight, Height, IMC))
+EN <- as.integer(as.logical(muestra_final[["EN"]]))
+datos.imc2[["Weight"]] <- NULL
+datos.imc2[["Height"]] <- NULL
+datos.imc2[["IMC"]] <- NULL
+datos.imc2[["EN"]] <- NULL
+
+control2 <- rfeControl(functions = lmFuncs, method="LOOCV",
+                      number=5, repeats=5, verbose = FALSE)
+
+modelo.imc2 <- rfe(datos.imc2, EN, rfeControl = control2, sizes = 1:6,
+                  metric = "Rsquared")
+
+print(modelo.imc2)
+print(modelo.imc2[["optVariables"]])
+print(ggplot(modelo.imc2))
+```
+

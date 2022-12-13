@@ -1,0 +1,245 @@
+---
+title: '**EP11: Regresión Lineal Múltiple**'
+output:
+  html_document:
+    df_print: paged
+date: "`r Sys.Date()`"
+---
+
+Un estudio recolectó medidas anatómicas de 247 hombres y 260 mujeres (Heinz et al., 2003). El estudio incluyó nueve mediciones del esqueleto (ocho diámetros y una profundidad de hueso a hueso) y doce mediciones de grosor (circunferencias) que incluyen el tejido. 
+
+# Carga de paquetes
+```{r message=FALSE}
+library("tidyverse")
+library("ggpubr")
+library("car")
+library("caret")
+```
+
+
+# Carga de Datos
+```{r}
+# Se carga el archivo de datos EP11 Datos.csv
+datos <- read.csv2("EP11 Datos.csv", fileEncoding = "UTF-8")
+# datos
+```
+
+**1. Definir la semilla a utilizar, que corresponde a los últimos cuatro dígitos del RUN (sin considerar el dígito verificador) del integrante de menor edad del equipo.**
+
+**2. Seleccionar una muestra de 50 mujeres (si la semilla es un número par) o 50 hombres (si la semilla es impar).**
+
+**3. Seleccionar de forma aleatoria ocho posibles variables predictoras.**
+```{r}
+# Se carga la semilla considerando el rut del integrante con menor edad
+set.seed(1914)
+# Se filtran los datos para solo tener datos de mujeres
+datos_mujeres <- datos %>% filter(Gender == 0)
+# Se obtiene una muestra de 50 mujeres aleatorias
+datos_mujeres <- sample_n(datos_mujeres, 50)
+# Se guarda los valores de la variable de respuesta (peso)
+Peso <- datos_mujeres$"Weight" 
+# Se excluye al peso para obtener 8 nuevas variables predictoras
+datos_mujeres$"Weight" <- NULL
+# Se obtienen las variables predictoras de forma aleatoria
+variables_seleccionadas <- sample(colnames(datos_mujeres),8)
+# Se obtienen las variables predictoras restantes
+datos_rlm <- datos_mujeres %>% select(variables_seleccionadas)
+variables_seleccionadas
+```
+
+**4. Seleccionar, de las otras variables, una que el equipo considere que podría ser útil para predecir la variable Peso, justificando bien esta selección.**
+```{r}
+# Se obtienen los datos sin considerar las variables seleccionadas en el punto 3
+variables_restantes <- datos_mujeres %>% select(!variables_seleccionadas)
+# Se imprimen los nombres de las variables de los datos anteriores
+print(colnames(variables_restantes))
+# Se calcula la correlación entre los datos restantes y el peso
+correlacion <- cor(variables_restantes, y = Peso)
+correlacion
+# Se crea un dataframe con las variables restantes y el peso
+datos_rls <- data.frame(variables_restantes, Peso)
+```
+
+Considerando las variables restantes, vamos a utilizar la variable **Hip.Girth**, la cual de acuerdo al diccionario de datos, corresponde a: *Grosor del pecho, sobre tejido mamario en mujeres y a la altura de los pezones en varones*. 
+
+**5. Usando el entorno R, construir un modelo de regresión lineal simple con el predictor seleccionado en el paso anterior.**
+
+Utilizando la función **lm**, se creará un Modelo de Regresión Lineal. Utilizando la función **summary** se puede obtener información util sobre el modelo. 
+```{r}
+#Se crea el modelo de regresión lineal
+modelo_rls = lm(Peso ~ Hip.Girth, datos_mujeres)
+#Se obtiene información del modelo
+print(summary(modelo_rls))
+```
+
+Notemos que el coeficiente de determinación ($R^2$) es **0.83**. También es posible graficar los residuos del modelo y el grafico de normalidad de los datos (qq-plot).
+
+```{r}
+# Se grafican los residuos del modelo
+plot(modelo_rls, which = 1)
+# Se grafica el qq-plot de los datos del modelo
+plot(modelo_rls, which = 2)
+```
+
+Ahora, podemos graficar el Modelo de Regresión Lineal creado.
+**Se muestra la regresión lineal para el Peso de acuerdo al Grosor a la altura de las caderas(Hip.Girth)**
+```{r}
+# Se grafica el modelo
+p <- ggscatter(datos_rls, x = "Hip.Girth", y = "Peso")
+p <- p + geom_smooth(method = lm, se = FALSE, colour = "blue")
+print(p)
+# Graficar residuos
+b_1 <- modelo_rls$coefficients[2]
+b_0 <- modelo_rls$coefficients[1]
+residuos <- datos_rls$Peso - (b_1 * datos_rls$Hip.Girth + b_0)
+data_rls <- data.frame(residuos, datos_rls)
+
+r <- ggscatter(data_rls, x = "Hip.Girth", y = "residuos", color = "blue", fill = "blue", xlab = "Hip Girth", ylab = "Residuo")
+r <- r + geom_hline(yintercept = 0, colour = "red")
+g <- ggarrange(p, r, ncol = 2, nrow = 1)
+print(g)
+cat("Prueba de normalidad para residuos")
+print(shapiro.test(data_rls$residuos))
+```
+
+Cómo se puede observar mediante la prueba de Shapiro-Wilk a los residuos, concluimos que estos siguen una distribución normal (p = 0.377), también la variabilidad de residuos es constante, otra observación importante es que las observaciones han sido seleccionadas de manera aleatoria y pertenecen a menos del 10% de la población.
+
+**6. Usando herramientas para la exploración de modelos del entorno R, buscar entre dos y cinco predictores de entre las variables seleccionadas al azar en el punto 3, para agregar al modelo de regresión lineal simple obtenido en el paso 5**
+
+### Ajustar modelo completo
+```{r}
+nulo <- lm(Peso ~ 1, datos_rlm)
+completo <- lm(Peso ~ ., datos_rlm)
+print(add1(nulo, scope = completo))
+```
+Cómo se puede observar en los AIC, se seleccionan 3 predictores con menor AIC, en este caso **Waist.Girth**, **Calf.Maximum.Girth** y **Knee.Girth**.
+
+Se agregan las variables con menor AIC
+```{r}
+modelo <- update(modelo_rls, . ~ . + Waist.Girth + Calf.Maximum.Girth + Knee.Girth)
+modelo
+```
+
+#### Verificación de las condiciones
+```{r}
+alfa <- 0.05
+# Independencia de los residuos
+cat("Prueba de Dubin-Watson para autocorrelaciones entre errores:\n")
+print(durbinWatsonTest(modelo))
+
+# Distribución normal de los residuos
+cat("\nPrueba de normalidad para residuos:\n")
+print(shapiro.test(modelo$residuals))
+
+# Homocedasticidad
+cat("\nPrueba de homocedasticidad para los residuos:\n")
+print(ncvTest(modelo))
+
+# Multicolinealidad
+vifs <- vif(modelo)
+cat("Verificar multicolinaridad:\n")
+cat("- VIFs:\n")
+print(vifs)
+cat("- Tolerancias:\n")
+print(1/vifs)
+cat("- VIF medio:", mean(vifs), "\n")
+```
+
+
+
+```{r}
+print(drop1(modelo, scope = modelo, test = "F"))
+modelo <- update(modelo, . ~ . - Calf.Maximum.Girth)
+modelo
+```
+
+#### Validación cruzada
+```{r}
+# Se actualiza el dataframe para hacer la validación cruzada
+datos_mujeres <- cbind(datos_mujeres, Peso)
+# Se evalúan los mejores predictores usando validación cruzada de 10 pliegues
+rlm <- train(Peso ~ Hip.Girth + Waist.Girth + Knee.Girth, data = datos_mujeres, method = "lm", trControl = trainControl(method = "cv", number = 10))
+cat("\nModelo de regresión lineal múltiple\n")
+print(summary(rlm))
+```
+
+```{r}
+evaluacion <- data.frame(predicted.probabilities = fitted(rlm[["finalModel"]]))
+evaluacion[["residuos_estandarizados"]] <- rstandard(rlm[["finalModel"]])
+evaluacion[["distancia_cook"]] <- cooks.distance(rlm[["finalModel"]])
+evaluacion[["dfbeta"]] <- dfbeta(rlm[["finalModel"]])
+evaluacion[["dffit"]] <- dffits(rlm[["finalModel"]])
+evaluacion[["apalancamiento"]] <- hatvalues(rlm[["finalModel"]])
+evaluacion[["radios_covarianza"]] <- covratio(rlm[["finalModel"]])
+```
+
+```{r}
+# 95% de los residuos estandarizados deberían estar entre −1.96 y +1.96, y 99%
+# entre -2.58 y +2.58.
+sospechosos1 <- which(abs(evaluacion[["residuos_estandarizados"]]) > 1.96)
+cat("- Residuos estandarizados fuera del 95% esperado: ")
+print(sospechosos1)
+```
+
+```{r}
+# Observaciones con distancia de Cook mayor a uno.
+sospechosos2 <- which(evaluacion[["distancia_cook"]] > 1)
+cat("- Residuos con distancia de Cook mayor que 1: ")
+print(sospechosos2)
+```
+
+```{r}
+# Observaciones con apalancamiento superior al doble del apalancamiento
+# promedio: (k + 1)/n.
+apalancamiento.promedio <- ncol(datos_mujeres) / nrow(datos_mujeres)
+sospechosos3 <- which(evaluacion[["apalancamiento"]] > 2 * apalancamiento.promedio)
+cat("- Residuos con apalancamiento fuera de rango (promedio = ",
+    apalancamiento.promedio, "): ", sep = "")
+
+print(sospechosos3)
+```
+
+```{r}
+# DFBeta debería ser < 1.
+sospechosos4 <- which(apply(evaluacion[["dfbeta"]] >= 1, 1, any))
+names(sospechosos4) <- NULL
+cat("- Residuos con DFBeta mayor que 1: ")
+print(sospechosos4)
+```
+
+```{r}
+# Finalmente, los casos no deberían desviarse significativamente
+# de los límites recomendados para la razón de covarianza:
+# CVRi > 1 + [3(k + 1)/n]
+# CVRi < 1 – [3(k + 1)/n]
+CVRi.lower <- 1 - 3 * apalancamiento.promedio
+CVRi.upper <- 1 + 3 * apalancamiento.promedio
+
+sospechosos5 <- which(evaluacion[["radios_covarianza"]] < CVRi.lower |
+                        evaluacion[["radios_covarianza"]] > CVRi.upper)
+
+cat("- Residuos con razón de covarianza fuera de rango ([", CVRi.lower, ", ",
+    CVRi.upper, "]): ", sep = "")
+
+print(sospechosos5)
+```
+
+
+```{r}
+alfa <- 0.05
+cat("Prueba de Dubin-Watson para autocorrelaciones entre errores:\n")
+durbinWatsonTest(modelo)
+cat("\nPrueba de normalidad para residuos:\n")
+shapiro.test(modelo$residuals)
+cat("\nPrueba de homocedasticidad para los residuos:\n")
+ncvTest(modelo)
+vifs <- vif(modelo)
+cat("Verificar multicolinaridad:\n")
+cat("- VIFs:\n")
+print(vifs)
+cat("- Tolerancias:\n")
+print(1/vifs)
+cat("- VIF medio:", mean(vifs), "\n")
+```
+
+
