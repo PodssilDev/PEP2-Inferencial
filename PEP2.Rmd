@@ -1,41 +1,264 @@
 ---
-title: "PE2"
-date: "2022-11-08"
+title: "**PE3: Parte Práctica 2022-2**"
 output: html_document
 ---
 # **Carga de paquetes**
 ```{r message=FALSE}
 library("tidyverse")
-library("nortest")
-library("ggpubr")
-library("pwr")
-library(ggpubr)
-library(DescTools)
-library(WRS2)
-
+library(car)
+library(caret)
+library(leaps)
+library(pROC)
 ```
 
-## **Pregunta 1:**
+#### **Pregunta 1: Usando como semilla el valor 113, seleccione una muestra de 150 condados. Construya un modelo de regresión lineal múltiple que use como máximo cinco variables predictoras, justificando su selección, que consiga un RMSE menor a 20% medido con validación cruzada de 10 pliegues. Verifique, y corrija de ser necesario, que el modelo sea confiable y generalizable.**
 
-#### **Lectura de datos**
+En primer lugar, se cargan los datos a utilizar.
 ```{r}
-# datos <- read.csv2("EI-2022-2-PE1-Datos.csv", stringsAsFactors = TRUE)
+# Carga de datos.
+datos <- read.csv("EI-2022-2-PE3-Datos.csv")
 ```
 
-#### **Hipótesis: **
-Las hipótesis son:
+Con los datos ya cargados, ahora se procede a configurar la semilla a utilizar (113) y a obtener la muestra de 150 de condados.
 
-* $H_0$:
-* $H_A$:
+```{r}
+set.seed(113) # Se inicializa la semilla
+tamano_muestra <- 150 # Tamaño de la muestra a utilizar
+muestra <- sample_n(datos, tamano_muestra, replace = FALSE) # Se obtiene la muestra
+respuesta <- muestra[["deathRate"]] # Se obtiene la variable de respuesta
+muestra[["deathRate"]] <- NULL # Se elimina la variable de respuesta de la muestra
+```
 
-#### **Conclusión:**
+Lo que procede a continuación es obtener las variables predictoras. Se solicitan cinco variables predictoras.
 
-## **Pregunta 2:**
+```{r}
+# Se copia la variable muestra
+predictores_1 <- muestra
+predictores_1[["Geography"]] <- NULL # Se elimina el nombre del condado
 
-#### **Hipótesis:**
-Las hipótesis son:
+# Seleccionar mejores predictores para modelo de regresión lineal múltiple
+# usando el método de todos los subconjuntos.
+rlm.inicial <- regsubsets(respuesta ~ ., data = predictores_1, nbest = 1, 
+                          nvmax = 5, method = "exhaustive")
+plot(rlm.inicial)
+var_predictores <- coef(rlm.inicial, 5)
+print(var_predictores)
+```
 
-* $H_0$:
-* $H_A$:
+Basándose en lo anterior, utilizando el método de todos los subconjuntos junto con el método de búsqueda exhaustiva,  obtenemos que las variables predictoras son:
 
-#### **Conclusión:**
+* incidenseRate
+* PctBachDeg25_Over
+* PctPublicCoverage 
+* PctPublicCoverageAlone 
+* PctOtherRace
+
+Ya que son variables relacionadas con las muertes por cáncer pero a la vez tienen que ver con las condiciones socioeconómicas de las personas. Además, estas variables tienen correlaciones tanto positivas como negativas.
+
+```{r}
+# Se seleccionan 5 variables predictoras y se consturye una matriz de datos para a utilizar para la RLM.
+predictores <- c("incidenceRate", "PctBachDeg25_Over", "PctPublicCoverage", "PctPublicCoverageAlone", "PctOtherRace")
+datos.rlm <- muestra %>% select(predictores) # Se crean los datos para el modelo rlm
+datos.rlm <- cbind(respuesta, datos.rlm) # Se agrega la variable de respuesta
+```
+
+Se ajusta el modelo RLM. Para ello, se utiliza la función train(), donde se utiliza tanto la variable de respuesta como la variable predictora. El método para ajustar el modelo es el método de validación cruzada de 10 pliegues.
+
+```{r}
+# Se utiliza train para ajustar el modelo de regresión lineal múltiple. Se utilizan las variables predictoras y el método de validación cruzada de 10 pliegues (10 cv fold).
+rlm <- train(respuesta ~ incidenceRate + PctBachDeg25_Over + PctPublicCoverage +  PctPublicCoverageAlone + PctOtherRace, data = datos.rlm, method = "lm", trControl = trainControl(method = "cv", number = 10))
+
+# Se utiliza summary para obtener mas información del modelo.
+print(summary(rlm))
+```
+
+Llegado a este punto, se pueden verificar las **condiciones para el modelo RLM**:
+
+* Las variables predictoras son todas cuantitativas
+* La variable de respuesta es cuantitativa y continua, sin restricciones para su variabilidad.
+* Ninguna variable predictora es una constante
+* No hay coeficientes de correlación altos. Esto se puede comprobar al momento de haber ejecutado la función regsubsets().
+* Cada variable predictora se relaciona con la variable de respuesta
+* Los valores de la variable de respuesta son independiente entre si
+
+Para verificar las siguientes condiciones, podemos obtener los gráficos asociados al modelo. 
+
+```{r}
+plot(rlm[["finalModel"]])
+```
+
+* Se puede apreciar que los residuos siguen una distribución normal.
+* Los residuos son ser homocedásticos (con varianzas similares) para cada nivel de los predictores.
+
+**Nota: La evaluación del modelo a continuación está fuertemente basado en la forma en la que se evaluó el modelo RLM en el EP11**
+
+```{r}
+# Obtener residuos y estadísticas de influencia de los casos.
+eval.rlm <- data.frame(predicted.probabilities = fitted(rlm[["finalModel"]]))
+eval.rlm[["standardized.residuals"]] <- rstandard(rlm[["finalModel"]])
+eval.rlm[["studentized.residuals"]] <-rstudent(rlm[["finalModel"]])
+eval.rlm[["cooks.distance"]] <- cooks.distance(rlm[["finalModel"]])
+eval.rlm[["dfbeta"]] <- dfbeta(rlm[["finalModel"]])
+eval.rlm[["dffit"]] <- dffits(rlm[["finalModel"]])
+eval.rlm[["leverage"]] <- hatvalues(rlm[["finalModel"]])
+eval.rlm[["covariance.ratios"]] <- covratio(rlm[["finalModel"]])
+```
+
+```{r}
+# 95% de los residuos estandarizados deberían estar entre −1.96 y +1.96, y 99%
+# entre -2.58 y +2.58.
+sospechosos1 <- which(abs(eval.rlm[["standardized.residuals"]]) > 1.96)
+cat("- Residuos estandarizados fuera del 95% esperado: ")
+print(sospechosos1)
+```
+
+```{r}
+# Observaciones con distancia de Cook mayor a uno.
+sospechosos2 <- which(eval.rlm[["cooks.distance"]] > 1)
+cat("- Residuos con distancia de Cook mayor que 1: ")
+print(sospechosos2)
+```
+
+```{r}
+# Observaciones con apalancamiento superior al doble del apalancamiento
+# promedio: (k + 1)/n.
+apalancamiento.promedio <- ncol(datos.rlm) / nrow(datos.rlm)
+sospechosos3 <- which(eval.rlm[["leverage"]] > 2 * apalancamiento.promedio)
+
+cat("- Residuos con apalancamiento fuera de rango (promedio = ",
+    apalancamiento.promedio, "): ", sep = "")
+
+print(sospechosos3)
+```
+
+```{r}
+# DFBeta debería ser < 1.
+sospechosos4 <- which(apply(eval.rlm[["dfbeta"]] >= 1, 1, any))
+names(sospechosos4) <- NULL
+cat("- Residuos con DFBeta mayor que 1: ")
+print(sospechosos4)
+```
+
+```{r}
+# Finalmente, los casos no deberían desviarse significativamente
+# de los límites recomendados para la razón de covarianza:
+# CVRi > 1 + [3(k + 1)/n]
+# CVRi < 1 – [3(k + 1)/n]
+CVRi.lower <- 1 - 3 * apalancamiento.promedio
+CVRi.upper <- 1 + 3 * apalancamiento.promedio
+
+sospechosos5 <- which(eval.rlm[["covariance.ratios"]] < CVRi.lower |
+                        eval.rlm[["covariance.ratios"]] > CVRi.upper)
+
+cat("- Residuos con razón de covarianza fuera de rango ([", CVRi.lower, ", ",
+    CVRi.upper, "]): ", sep = "")
+
+print(sospechosos5)
+```
+
+```{r}
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4,
+                 sospechosos5)
+
+sospechosos <- sort(unique(sospechosos))
+cat("\nResumen de observaciones sospechosas:\n")
+
+print(round(eval.rlm[sospechosos,
+                     c("cooks.distance", "leverage", "covariance.ratios")],
+            3))
+```
+
+Si bien hay algunas observaciones que podrían considerarse atípicas, la distancia de Cook para todas ellas se aleja bastante de 1, por lo que no deberían ser causa de preocupación.
+
+```{r}
+# Se verifica la independencia de residuos
+cat("\nIndependencia de los residuos\n")
+print(durbinWatsonTest(rlm[["finalModel"]]))
+```
+
+Como el p-value de la prueba de Durbin-Watson entrega p-value 0,534, podemos concluir que los residuos son independientes.
+
+Basándonos en todo lo realizado hasta ahora, podemos decir que el modelo es confiable y generalizable.
+
+#### **Conclusión:** Por lo tanto, se logra construir un modelo RLM confiable y generalizable, donde se utilizan variables predictoras que cumplen las condiciones asociadas a un modelo RLM para producir la variable deathRate. Además, se verificaron las condiciones asociadas a los residuos y al resto del modelo.
+
+#### **Pregunta 2: Agregue al conjunto de datos la variable *tooHigh* con valor 1 si la tasa de muertes por cada 100 mil habitantes (deathRate) es mayor o igual a 200, y 0 en caso contrario. Usando como semilla el valor 101 seleccione de forma aleatoria primero 90 condados con tooHigh = 1 y luego 90 condados con tooHigh = 0. Pensando en un futuro sistema de alertas para las autoridades de salud, construya un modelo de regresión logística que use la mediana de ingresos del condado ("medIncome") para predecir la variable "tooHigh" usando los primeros 60 condados de cada grupo. Luego, con el resto de la muestra de condados seleccionada evalúe la calidad de la clasificación que proporciona este modelo considerando exactitud y el área bajo la curva ROC. No evalúe la confiabilidad o generalidad del modelo, a menos que le sobre tiempo.**
+
+En primer lugar, se cargan los datos a utilizar.
+```{r}
+# Carga de datos.
+datos2 <- read.csv("EI-2022-2-PE3-Datos.csv")
+```
+
+Ahora, se busca agregar la variable tooHigh, dependiendo de la variable deathRate.
+```{r}
+# Si deathRate supera es mayor o igual a 200, tooHigh es 1
+datos2[["tooHigh"]][datos[["deathRate"]] >= 200] <- 1
+# Si deathRate es menor a 200, tooHigh es 0
+datos2[["tooHigh"]][datos[["deathRate"]] < 200] <- 0
+
+# Se coloca la variable tooHigh como factor. Esto es para luego no tener problemas al crear la matriz de confusión.
+datos2[["tooHigh"]] <- factor(datos2[["tooHigh"]])
+```
+
+Ahora se inicializa la semilla (101) y se obtienen las muestras aleatorias solicitadas
+
+```{r}
+set.seed(101) # Se inicializa la semilla
+
+# Se obtienen 90 condados aleatorios cuando tooHigh es igual a 1.
+datos_tooHigh1 <- datos2 %>% filter(tooHigh == 1)
+datos_tooHigh1 <- sample_n(datos_tooHigh1, 90, replace = FALSE)
+
+# Se obtienen 90 condados aleatorios cuando tooHigh es igual a 0.
+datos_tooHigh0 <- datos2 %>% filter(tooHigh == 0)
+datos_tooHigh0 <- sample_n(datos_tooHigh0, 90, replace = FALSE)
+```
+
+Se desea utilizar ambas muestras para poder construir un Modelo de regresión logística. 
+
+```{r}
+# Se obtiene una muestra de 60 personas con tooHigh 0, para construir el modelo
+evaluar_0 <- sample_n(datos_tooHigh0, 60, replace = FALSE)
+# Se obtiene una muestra de 60 personas con tooHigh 1, para construir el modelo
+evaluar_1 <- sample_n(datos_tooHigh1, 60, replace = FALSE)
+# Se obtiene una muestra de 30 personas con tooHigh 0, para evaluar el modelo
+evaluar_0_0 <- sample_n(datos_tooHigh0, 30, replace = FALSE)
+# Se obtiene una muestra de 30 personas con tooHigh 1, para evaluar el modelo
+evaluar_1_1 <- sample_n(datos_tooHigh1, 30, replace = FALSE)
+# Se unen ambas muestras para construir el modelo
+muestra_evaluar <- rbind(evaluar_0, evaluar_1)
+
+# Se construye el modelo de Regresión Logística, usando medIncome para predecir tooHigh.
+rlg <- glm(tooHigh ~ medIncome, family = binomial(link = "logit"), data = muestra_evaluar)
+
+# Se utiliza summary para obtener mas información del modelo
+print(summary(rlg))
+```
+
+Ahora con el modelo ya construido, podemos evaluar el modelo obteniendo la curva ROC.
+```{r}
+# Evaluar el modelo con el conjunto de prueba.
+umbral <- 0.5
+
+# Se obtiene el conjunto de prueba para evaluar el modelo
+conjunto_prueba <- rbind(evaluar_0_0, evaluar_1_1)
+
+# Se obtiene la curva ROC del modelo
+probs_p <- predict(rlg, conjunto_prueba, type = "response")
+preds_p <- sapply(probs_p, function(p) ifelse(p >= umbral, "1", "0"))
+preds_p <- factor(preds_p, levels = levels(datos2[["tooHigh"]]))
+ROC_p <- roc(conjunto_prueba[["tooHigh"]], probs_p)
+# Gráfico de la curva ROC del modelo
+plot(ROC_p)
+```
+
+También es posible obtener la matriz de confusión del modelo.
+
+```{r}
+matriz_p <- confusionMatrix(preds_p, conjunto_prueba[["tooHigh"]])
+print(matriz_p)
+```
+
+
+#### **Conclusión:** Se puede ver que se crea un Modelo de Regresión Logística, donde la curva ROC asociada tiene su curva bastante alejada de la diagonal, lo cual es una señal de que el modelo está bien construido y tiene buena calidad de clasificación. Además, de la Matriz de Confusión se obtiene que todos los valores p son mayores a 0,05 y que se tiene una precisión de 0,7333, lo cual nuevamente apoya la idea de que se tiene un buen modelo.
